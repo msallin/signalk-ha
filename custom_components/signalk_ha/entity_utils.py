@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - Home Assistant provides slugify at run
         normalized = re.sub(r"_+", "_", normalized)
         return normalized.strip("_")
 
+
 from .const import CONF_ENTITY_ID_PREFIX
 
 

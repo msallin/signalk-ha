@@ -86,9 +86,7 @@ class SignalKPositionGeolocation(CoordinatorEntity, GeolocationEvent):
         self._entry = entry
         self._discovery = discovery
         self._entity_id_prefix = entity_id_prefix_for_entry(entry)
-        self._suggested_object_id = build_object_id(
-            SK_PATH_POSITION, prefix=self._entity_id_prefix
-        )
+        self._suggested_object_id = build_object_id(SK_PATH_POSITION, prefix=self._entity_id_prefix)
         self._attr_device_info = build_device_info(entry)
         self._description = _position_description(discovery)
         self._spec_known = _position_spec_known(discovery)

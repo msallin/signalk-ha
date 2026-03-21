@@ -41,6 +41,7 @@ If you prefer to install manually:
 | Port | Signal K port. | 3000 |
 | Use TLS (https/wss) | Enable if your Signal K uses HTTPS/WSS. | Off |
 | Ignore certificate errors | Allow self-signed certificates. | Off |
+| Entity ID prefix | Optional prefix added to all entity IDs (e.g. `boat` produces `sensor.boat_sog`). Leave empty for default naming. | Empty |
 
 ### Options
 

@@ -7,8 +7,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.signalk_ha.auth import SignalKAuthManager
 from custom_components.signalk_ha.const import (
     CONF_BASE_URL,
-    CONF_ENTITY_ID_PREFIX,
     CONF_ENABLE_NOTIFICATIONS,
+    CONF_ENTITY_ID_PREFIX,
     CONF_HOST,
     CONF_NOTIFICATION_PATHS,
     CONF_PORT,

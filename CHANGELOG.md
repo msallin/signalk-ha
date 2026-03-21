@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.0
+
+### Breaking Changes
+
+- Improved marine naming conventions and angle unit handling may rename existing entities. Review your entity IDs and automations after upgrading.
+
+### Features
+
+- Add optional entity ID prefix in config flow to namespace entity IDs (e.g. `boat` produces `sensor.boat_sog`).
+- Default display precision for angle and speed sensors.
+- Improved marine naming with proper nautical abbreviations (HDG, HDM, COG, SOG, etc.).
+
+### Bug Fixes
+
+- Classify angle units with schema-aware true/magnetic/compass rules.
+- Preserve default entity IDs when the prefix is left empty.
+
 ## 1.2.0
 
 ### Improvements

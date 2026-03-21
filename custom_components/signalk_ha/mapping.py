@@ -120,7 +120,8 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
         display_name="HDM",
         unit=angle_unit_for_path(
             "navigation.headingMagnetic",
-            "Current magnetic heading of the vessel, equals headingCompass adjusted for magneticDeviation",
+            "Current magnetic heading of the vessel, equals headingCompass"
+            " adjusted for magneticDeviation",
         ),
         device_class=DEVICE_CLASS_ANGLE,
         state_class=SensorStateClass.MEASUREMENT,

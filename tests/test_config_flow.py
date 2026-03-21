@@ -16,8 +16,8 @@ from custom_components.signalk_ha.config_flow import _admin_access_url
 from custom_components.signalk_ha.const import (
     CONF_ACCESS_TOKEN,
     CONF_BASE_URL,
-    CONF_ENTITY_ID_PREFIX,
     CONF_ENABLE_NOTIFICATIONS,
+    CONF_ENTITY_ID_PREFIX,
     CONF_GROUPS,
     CONF_HOST,
     CONF_NOTIFICATION_PATHS,

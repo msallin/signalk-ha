@@ -57,8 +57,8 @@ from .const import (
     DEFAULT_VERIFY_SSL,
     DOMAIN,
 )
-from .identity import build_instance_id, resolve_vessel_identity
 from .entity_utils import normalize_entity_id_prefix
+from .identity import build_instance_id, resolve_vessel_identity
 from .notifications import (
     normalize_notification_paths,
     normalize_notification_prefixes,
@@ -719,7 +719,9 @@ def _zeroconf_properties(discovery_info: Any) -> dict[str, str]:
         value = (
             raw_value.decode("utf-8", "ignore")
             if isinstance(raw_value, bytes)
-            else "" if raw_value is None else str(raw_value)
+            else ""
+            if raw_value is None
+            else str(raw_value)
         )
         normalized[key.lower()] = value
     return normalized

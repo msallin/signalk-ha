@@ -47,7 +47,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         description="Regular email for the skipper",
     ),
     "communication.emailHf": SchemaEntry(
-        description=("Email address to be used for HF email (Winmail, Airmail, " "Sailmail) "),
+        description=("Email address to be used for HF email (Winmail, Airmail, Sailmail) "),
     ),
     "communication.phoneNumber": SchemaEntry(
         description="Phone number of skipper",
@@ -63,7 +63,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="m",
     ),
     "design.aisShipType": SchemaEntry(
-        description=("The ais ship type see " "http://www.bosunsmate.org/ais/message5.php "),
+        description=("The ais ship type see http://www.bosunsmate.org/ais/message5.php "),
     ),
     "design.beam": SchemaEntry(
         description="Beam length",
@@ -248,19 +248,19 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "environment.tide.heightHigh": SchemaEntry(
         description=(
-            "Next high tide height  relative to lowest astronomical tide " "(LAT/Chart Datum) "
+            "Next high tide height  relative to lowest astronomical tide (LAT/Chart Datum) "
         ),
         units="m",
     ),
     "environment.tide.heightLow": SchemaEntry(
         description=(
-            "The next low tide height relative to lowest astronomical " "tide (LAT/Chart Datum) "
+            "The next low tide height relative to lowest astronomical tide (LAT/Chart Datum) "
         ),
         units="m",
     ),
     "environment.tide.heightNow": SchemaEntry(
         description=(
-            "The current tide height  relative to lowest astronomical " "tide (LAT/Chart Datum) "
+            "The current tide height  relative to lowest astronomical tide (LAT/Chart Datum) "
         ),
         units="m",
     ),
@@ -292,11 +292,11 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "environment.time.timezoneRegion": SchemaEntry(
         description=(
-            "Onboard timezone offset as listed in the IANA timezone " "database (tz database) "
+            "Onboard timezone offset as listed in the IANA timezone database (tz database) "
         ),
     ),
     "environment.water": SchemaEntry(
-        description=("Environmental conditions of the water that the vessel is " "sailing in "),
+        description=("Environmental conditions of the water that the vessel is sailing in "),
     ),
     "environment.water.salinity": SchemaEntry(
         description="Water salinity",
@@ -318,7 +318,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="rad",
     ),
     "environment.wind.angleTrueWater": SchemaEntry(
-        description=("True wind angle based on speed through water, negative to " "port "),
+        description=("True wind angle based on speed through water, negative to port "),
         units="rad",
     ),
     "environment.wind.directionChangeAlarm": SchemaEntry(
@@ -360,8 +360,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.anchor.maxRadius": SchemaEntry(
         description=(
-            "Radius of anchor alarm boundary. The distance from anchor to "
-            "the center of the boat "
+            "Radius of anchor alarm boundary. The distance from anchor to the center of the boat "
         ),
         units="m",
     ),
@@ -381,10 +380,10 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         description="Course information computed with Great Circle",
     ),
     "navigation.courseGreatCircle.activeRoute": SchemaEntry(
-        description=("Data required if sailing to an active route, defined in " "resources. "),
+        description=("Data required if sailing to an active route, defined in resources. "),
     ),
     "navigation.courseGreatCircle.activeRoute.estimatedTimeOfArrival": SchemaEntry(
-        description=("The estimated time of arrival at the end of the current " "route "),
+        description=("The estimated time of arrival at the end of the current route "),
     ),
     "navigation.courseGreatCircle.activeRoute.startTime": SchemaEntry(
         description="The time this route was activated",
@@ -398,7 +397,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseGreatCircle.bearingTrackTrue": SchemaEntry(
         description=(
-            "The bearing of a line between previousPoint and nextPoint, " "relative to true north. "
+            "The bearing of a line between previousPoint and nextPoint, relative to true north. "
         ),
         units="rad",
     ),
@@ -432,7 +431,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseGreatCircle.nextPoint.distance": SchemaEntry(
         description=(
-            "The distance in meters between the vessel's present position " "and the nextPoint "
+            "The distance in meters between the vessel's present position and the nextPoint "
         ),
         units="m",
     ),
@@ -444,7 +443,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseGreatCircle.nextPoint.timeToGo": SchemaEntry(
         description=(
-            "Time in seconds to reach nextPoint's perpendicular) with " "current speed & direction "
+            "Time in seconds to reach nextPoint's perpendicular) with current speed & direction "
         ),
         units="s",
     ),
@@ -457,7 +456,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseGreatCircle.previousPoint.distance": SchemaEntry(
         description=(
-            "The distance in meters between previousPoint and the " "vessel's present position "
+            "The distance in meters between previousPoint and the vessel's present position "
         ),
         units="m",
     ),
@@ -476,10 +475,10 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         description="Course information computed with Rhumbline",
     ),
     "navigation.courseRhumbline.activeRoute": SchemaEntry(
-        description=("Data required if sailing to an active route, defined in " "resources. "),
+        description=("Data required if sailing to an active route, defined in resources. "),
     ),
     "navigation.courseRhumbline.activeRoute.estimatedTimeOfArrival": SchemaEntry(
-        description=("The estimated time of arrival at the end of the current " "route "),
+        description=("The estimated time of arrival at the end of the current route "),
     ),
     "navigation.courseRhumbline.activeRoute.startTime": SchemaEntry(
         description="The time this route was activated",
@@ -493,7 +492,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseRhumbline.bearingTrackTrue": SchemaEntry(
         description=(
-            "The bearing of a line between previousPoint and nextPoint, " "relative to true north. "
+            "The bearing of a line between previousPoint and nextPoint, relative to true north. "
         ),
         units="rad",
     ),
@@ -527,7 +526,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseRhumbline.nextPoint.distance": SchemaEntry(
         description=(
-            "The distance in meters between the vessel's present position " "and the nextPoint "
+            "The distance in meters between the vessel's present position and the nextPoint "
         ),
         units="m",
     ),
@@ -539,7 +538,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseRhumbline.nextPoint.timeToGo": SchemaEntry(
         description=(
-            "Time in seconds to reach nextPoint's perpendicular) with " "current speed & direction "
+            "Time in seconds to reach nextPoint's perpendicular) with current speed & direction "
         ),
         units="s",
     ),
@@ -552,7 +551,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.courseRhumbline.previousPoint.distance": SchemaEntry(
         description=(
-            "The distance in meters between previousPoint and the " "vessel's present position "
+            "The distance in meters between previousPoint and the vessel's present position "
         ),
         units="m",
     ),
@@ -569,7 +568,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         description="The intended destination of this trip",
     ),
     "navigation.destination.commonName": SchemaEntry(
-        description=("Common name of the Destination, eg 'Fiji', also used in ais " "messages "),
+        description=("Common name of the Destination, eg 'Fiji', also used in ais messages "),
     ),
     "navigation.destination.eta": SchemaEntry(
         description="Expected time of arrival at destination waypoint",
@@ -635,7 +634,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "navigation.leewayAngle": SchemaEntry(
         description=(
-            "Leeway Angle derived from the longitudinal and transverse " "speeds through the water "
+            "Leeway Angle derived from the longitudinal and transverse speeds through the water "
         ),
         units="rad",
     ),
@@ -647,7 +646,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="m",
     ),
     "navigation.magneticDeviation": SchemaEntry(
-        description=("Magnetic deviation of the compass at the current " "headingCompass "),
+        description=("Magnetic deviation of the compass at the current headingCompass "),
         units="rad",
     ),
     "navigation.magneticVariation": SchemaEntry(
@@ -660,14 +659,14 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="rad",
     ),
     "navigation.magneticVariationAgeOfService": SchemaEntry(
-        description=("Seconds since the 1st Jan 1970 that the variation " "calculation was made "),
+        description=("Seconds since the 1st Jan 1970 that the variation calculation was made "),
         units="s",
     ),
     "navigation.maneuver": SchemaEntry(
-        description=("Special maneuver such as regional passing arrangement. (from " "ais) "),
+        description=("Special maneuver such as regional passing arrangement. (from ais) "),
     ),
     "navigation.position": SchemaEntry(
-        description=("The position of the vessel in 2 or 3 dimensions (WGS84 " "datum) "),
+        description=("The position of the vessel in 2 or 3 dimensions (WGS84 datum) "),
     ),
     "navigation.racing": SchemaEntry(
         description="Specific navigational data related to yacht racing.",
@@ -713,11 +712,11 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="s",
     ),
     "navigation.racing.timeStbdDown": SchemaEntry(
-        description=("Time to arrive at the start line on starboard, turning " "downwind "),
+        description=("Time to arrive at the start line on starboard, turning downwind "),
         units="s",
     ),
     "navigation.racing.timeStbdUp": SchemaEntry(
-        description=("Time to arrive at the start line on starboard, turning " "upwind "),
+        description=("Time to arrive at the start line on starboard, turning upwind "),
         units="s",
     ),
     "navigation.racing.timeToStart": SchemaEntry(
@@ -837,7 +836,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "performance.targetSpeed": SchemaEntry(
         description=(
-            "The target speed for the beat angle or gybe angle, which " "ever is applicable. "
+            "The target speed for the beat angle or gybe angle, which ever is applicable. "
         ),
         units="m/s",
     ),
@@ -888,7 +887,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "sails.inventory": SchemaEntry(
         description=(
-            "An object containing a description of each sail available to " "the vessel crew "
+            "An object containing a description of each sail available to the vessel crew "
         ),
     ),
     "sensors.class": SchemaEntry(
@@ -908,7 +907,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "sensors.sensorData": SchemaEntry(
         description=(
-            "The data of the sensor data. FIXME - need to ref the " "definitions of sensor types "
+            "The data of the sensor data. FIXME - need to ref the definitions of sensor types "
         ),
     ),
     "sensors.sensorType": SchemaEntry(
@@ -930,7 +929,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
     ),
     "steering.autopilot.gain": SchemaEntry(
         description=(
-            "Auto-pilot gain, higher number equals more rudder movement " "for a given turn "
+            "Auto-pilot gain, higher number equals more rudder movement for a given turn "
         ),
     ),
     "steering.autopilot.maxDriveCurrent": SchemaEntry(
@@ -967,11 +966,11 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="rad",
     ),
     "steering.autopilot.target.windAngleApparent": SchemaEntry(
-        description=("Target angle to steer, relative to Apparent wind +port " "-starboard "),
+        description=("Target angle to steer, relative to Apparent wind +port -starboard "),
         units="rad",
     ),
     "steering.autopilot.target.windAngleTrue": SchemaEntry(
-        description=("Target angle to steer, relative to true wind +port " "-starboard "),
+        description=("Target angle to steer, relative to true wind +port -starboard "),
         units="rad",
     ),
     "steering.rudderAngle": SchemaEntry(
@@ -979,7 +978,7 @@ _EXACT_ENTRIES: dict[str, SchemaEntry] = {
         units="rad",
     ),
     "steering.rudderAngleTarget": SchemaEntry(
-        description=("The angle the rudder should move to, +ve is rudder to " "Starboard "),
+        description=("The angle the rudder should move to, +ve is rudder to Starboard "),
         units="rad",
     ),
     "tanks.baitWell": SchemaEntry(
@@ -1154,8 +1153,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "alternators", "*", "chargerRole"),
         SchemaEntry(
             description=(
-                "How is charging source configured?  Standalone, or in sync "
-                "with another charger? "
+                "How is charging source configured?  Standalone, or in sync with another charger? "
             ),
         ),
     ),
@@ -1231,7 +1229,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "alternators", "*", "pulleyRatio"),
         SchemaEntry(
             description=(
-                "Mechanical pulley ratio of driving source (Used to back " "calculate engine RPMs) "
+                "Mechanical pulley ratio of driving source (Used to back calculate engine RPMs) "
             ),
             units="ratio",
         ),
@@ -1274,14 +1272,14 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "alternators", "*", "temperature", "faultLower"),
         SchemaEntry(
-            description=("Lower fault temperature limit - device may " "disable/disconnect "),
+            description=("Lower fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
     (
         ("electrical", "alternators", "*", "temperature", "faultUpper"),
         SchemaEntry(
-            description=("Upper fault temperature limit - device may " "disable/disconnect "),
+            description=("Upper fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
@@ -1416,7 +1414,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "batteries", "*", "lifetimeDischarge"),
         SchemaEntry(
             description=(
-                "Cumulative charge discharged from battery over operational " "lifetime of battery "
+                "Cumulative charge discharged from battery over operational lifetime of battery "
             ),
             units="C",
         ),
@@ -1425,7 +1423,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "batteries", "*", "lifetimeRecharge"),
         SchemaEntry(
             description=(
-                "Cumulative charge recharged into battery over operational " "lifetime of battery "
+                "Cumulative charge recharged into battery over operational lifetime of battery "
             ),
             units="C",
         ),
@@ -1473,14 +1471,14 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "batteries", "*", "temperature", "faultLower"),
         SchemaEntry(
-            description=("Lower fault temperature limit - device may " "disable/disconnect "),
+            description=("Lower fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
     (
         ("electrical", "batteries", "*", "temperature", "faultUpper"),
         SchemaEntry(
-            description=("Upper fault temperature limit - device may " "disable/disconnect "),
+            description=("Upper fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
@@ -1556,8 +1554,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "chargers", "*", "chargerRole"),
         SchemaEntry(
             description=(
-                "How is charging source configured?  Standalone, or in sync "
-                "with another charger? "
+                "How is charging source configured?  Standalone, or in sync with another charger? "
             ),
         ),
     ),
@@ -1646,14 +1643,14 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "chargers", "*", "temperature", "faultLower"),
         SchemaEntry(
-            description=("Lower fault temperature limit - device may " "disable/disconnect "),
+            description=("Lower fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
     (
         ("electrical", "chargers", "*", "temperature", "faultUpper"),
         SchemaEntry(
-            description=("Upper fault temperature limit - device may " "disable/disconnect "),
+            description=("Upper fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
@@ -1803,14 +1800,14 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "inverters", "*", "dc", "temperature", "faultLower"),
         SchemaEntry(
-            description=("Lower fault temperature limit - device may " "disable/disconnect "),
+            description=("Lower fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
     (
         ("electrical", "inverters", "*", "dc", "temperature", "faultUpper"),
         SchemaEntry(
-            description=("Upper fault temperature limit - device may " "disable/disconnect "),
+            description=("Upper fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
@@ -1897,8 +1894,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("electrical", "solar", "*", "chargerRole"),
         SchemaEntry(
             description=(
-                "How is charging source configured?  Standalone, or in sync "
-                "with another charger? "
+                "How is charging source configured?  Standalone, or in sync with another charger? "
             ),
         ),
     ),
@@ -1945,7 +1941,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "solar", "*", "loadCurrent"),
         SchemaEntry(
-            description=("Amperage being supplied to load directly connected to " "controller "),
+            description=("Amperage being supplied to load directly connected to controller "),
             units="A",
         ),
     ),
@@ -2034,14 +2030,14 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("electrical", "solar", "*", "temperature", "faultLower"),
         SchemaEntry(
-            description=("Lower fault temperature limit - device may " "disable/disconnect "),
+            description=("Lower fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
     (
         ("electrical", "solar", "*", "temperature", "faultUpper"),
         SchemaEntry(
-            description=("Upper fault temperature limit - device may " "disable/disconnect "),
+            description=("Upper fault temperature limit - device may disable/disconnect "),
             units="K",
         ),
     ),
@@ -2171,7 +2167,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("resources", "charts", "*", "chartLayers"),
         SchemaEntry(
-            description=("If the chart format is WMS, the layers enabled for the " "chart. "),
+            description=("If the chart format is WMS, the layers enabled for the chart. "),
         ),
     ),
     (
@@ -2208,7 +2204,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("resources", "charts", "*", "region"),
         SchemaEntry(
             description=(
-                "Region related to note. A pointer to a region UUID. " "Alternative to geohash "
+                "Region related to note. A pointer to a region UUID. Alternative to geohash "
             ),
         ),
     ),
@@ -2221,7 +2217,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("resources", "charts", "*", "tilemapUrl"),
         SchemaEntry(
-            description=("A url to the tilemap of the chart for use in TMS " "chartplotting apps "),
+            description=("A url to the tilemap of the chart for use in TMS chartplotting apps "),
         ),
     ),
     (
@@ -2287,7 +2283,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("resources", "regions", "*", "feature"),
         SchemaEntry(
-            description=("A Geo JSON feature object which describes the regions " "boundary "),
+            description=("A Geo JSON feature object which describes the regions boundary "),
         ),
     ),
     (
@@ -2331,7 +2327,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("resources", "routes", "*", "feature"),
         SchemaEntry(
             description=(
-                "A Geo JSON feature object which describes the route between " "the waypoints "
+                "A Geo JSON feature object which describes the route between the waypoints "
             ),
         ),
     ),
@@ -2419,7 +2415,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
     (
         ("sails", "inventory", "*", "reducedState", "furledRatio"),
         SchemaEntry(
-            description=("Ratio of sail reduction, 0 means full and 1 is completely " "furled in "),
+            description=("Ratio of sail reduction, 0 means full and 1 is completely furled in "),
         ),
     ),
     (
@@ -2477,7 +2473,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "baitWell", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2545,7 +2541,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "ballast", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2613,7 +2609,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "blackWater", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2681,7 +2677,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "freshWater", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2749,7 +2745,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "fuel", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2817,7 +2813,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "gas", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2885,7 +2881,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "liveWell", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -2953,7 +2949,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "lubrication", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
@@ -3021,7 +3017,7 @@ _PATTERN_ENTRIES: list[tuple[tuple[str, ...], SchemaEntry]] = [
         ("tanks", "wasteWater", "*", "name"),
         SchemaEntry(
             description=(
-                "The name of the tank. Useful if multiple tanks of a certain " "type are on board "
+                "The name of the tank. Useful if multiple tanks of a certain type are on board "
             ),
         ),
     ),
