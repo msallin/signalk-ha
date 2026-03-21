@@ -716,13 +716,12 @@ def _zeroconf_properties(discovery_info: Any) -> dict[str, str]:
     normalized: dict[str, str] = {}
     for raw_key, raw_value in props.items():
         key = raw_key.decode("utf-8", "ignore") if isinstance(raw_key, bytes) else str(raw_key)
-        value = (
-            raw_value.decode("utf-8", "ignore")
-            if isinstance(raw_value, bytes)
-            else ""
-            if raw_value is None
-            else str(raw_value)
-        )
+        if isinstance(raw_value, bytes):
+            value = raw_value.decode("utf-8", "ignore")
+        elif raw_value is None:
+            value = ""
+        else:
+            value = str(raw_value)
         normalized[key.lower()] = value
     return normalized
 
