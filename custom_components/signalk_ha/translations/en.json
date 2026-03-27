@@ -69,7 +69,10 @@
           "enable_notifications": "Enable notifications",
           "notification_paths": "Notification paths to create event entities for (one per line, empty to disable)",
           "notification_ignore_prefixes": "Notification prefixes to ignore for event entities (one per line)",
-          "groups": "Data groups to include"
+          "groups": "Data groups to include",
+          "default_period_ms": "Default subscription period (ms)",
+          "default_min_update_seconds": "Default minimum update interval (seconds)",
+          "path_policies": "Path policy overrides (one per line: path, period_ms=5000, min_update_seconds=5.0, tolerance=0.5)"
         }
       }
     }

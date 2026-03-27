@@ -35,6 +35,8 @@ from .auth import (
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_BASE_URL,
+    CONF_DEFAULT_MIN_UPDATE_SECONDS,
+    CONF_DEFAULT_PERIOD_MS,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENTITY_ID_PREFIX,
     CONF_GROUPS,
@@ -43,6 +45,7 @@ from .const import (
     CONF_NOTIFICATION_IGNORE_PREFIXES,
     CONF_NOTIFICATION_PATHS,
     CONF_OVERRIDE_DISCOVERED_HOST,
+    CONF_PATH_POLICIES,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SERVER_ID,
@@ -55,8 +58,10 @@ from .const import (
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENTITY_ID_PREFIX,
     DEFAULT_GROUPS,
+    DEFAULT_MIN_UPDATE_SECONDS,
     DEFAULT_NOTIFICATION_IGNORE_PREFIXES,
     DEFAULT_NOTIFICATION_PATHS,
+    DEFAULT_PERIOD_MS,
     DEFAULT_PORT,
     DEFAULT_REFRESH_INTERVAL_HOURS,
     DEFAULT_SSL,
@@ -70,6 +75,7 @@ from .notifications import (
     normalize_notification_prefixes,
     paths_to_text,
 )
+from .policy import parse_path_policies_text, path_policies_to_text
 from .rest import (
     DiscoveryInfo,
     async_fetch_discovery,
@@ -743,6 +749,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_NOTIFICATION_IGNORE_PREFIXES, DEFAULT_NOTIFICATION_IGNORE_PREFIXES
                 )
             )
+            path_policies = parse_path_policies_text(user_input.get(CONF_PATH_POLICIES))
             return self.async_create_entry(
                 title="",
                 data={
@@ -751,6 +758,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_NOTIFICATION_PATHS: notification_paths,
                     CONF_NOTIFICATION_IGNORE_PREFIXES: notification_prefixes,
                     CONF_GROUPS: groups,
+                    CONF_DEFAULT_PERIOD_MS: int(
+                        user_input.get(CONF_DEFAULT_PERIOD_MS, DEFAULT_PERIOD_MS)
+                    ),
+                    CONF_DEFAULT_MIN_UPDATE_SECONDS: float(
+                        user_input.get(
+                            CONF_DEFAULT_MIN_UPDATE_SECONDS,
+                            DEFAULT_MIN_UPDATE_SECONDS,
+                        )
+                    ),
+                    CONF_PATH_POLICIES: path_policies,
                 },
             )
 
@@ -772,6 +789,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_NOTIFICATION_IGNORE_PREFIXES, DEFAULT_NOTIFICATION_IGNORE_PREFIXES
             )
         )
+        current_default_period_ms = int(
+            self._entry.options.get(CONF_DEFAULT_PERIOD_MS, DEFAULT_PERIOD_MS)
+        )
+        current_default_min_update_seconds = float(
+            self._entry.options.get(CONF_DEFAULT_MIN_UPDATE_SECONDS, DEFAULT_MIN_UPDATE_SECONDS)
+        )
+        current_path_policies = path_policies_to_text(
+            self._entry.options.get(CONF_PATH_POLICIES, {})
+        )
         group_options = _group_options()
         schema = vol.Schema(
             {
@@ -786,6 +812,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_NOTIFICATION_IGNORE_PREFIXES, default=current_notification_prefixes
                 ): cv.string,
                 vol.Optional(CONF_GROUPS, default=current_groups): cv.multi_select(group_options),
+                vol.Optional(CONF_DEFAULT_PERIOD_MS, default=current_default_period_ms): vol.All(
+                    vol.Coerce(int), vol.Range(min=1000)
+                ),
+                vol.Optional(
+                    CONF_DEFAULT_MIN_UPDATE_SECONDS,
+                    default=current_default_min_update_seconds,
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.5)),
+                vol.Optional(CONF_PATH_POLICIES, default=current_path_policies): cv.string,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

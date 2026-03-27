@@ -21,6 +21,9 @@ CONF_SERVER_ID = "server_id"
 CONF_SERVER_VERSION = "server_version"
 CONF_ENTITY_ID_PREFIX = "entity_id_prefix"
 CONF_OVERRIDE_DISCOVERED_HOST = "override_discovered_host"
+CONF_DEFAULT_PERIOD_MS = "default_period_ms"
+CONF_DEFAULT_MIN_UPDATE_SECONDS = "default_min_update_seconds"
+CONF_PATH_POLICIES = "path_policies"
 
 DEFAULT_PORT = 3000
 DEFAULT_SSL = False
@@ -32,6 +35,8 @@ DEFAULT_NOTIFICATION_IGNORE_PREFIXES: tuple[str, ...] = ("notifications.security
 DEFAULT_GROUPS = ("navigation", "environment", "tanks")
 DEFAULT_ENTITY_ID_PREFIX = ""
 
+SERVICE_SET_PATH_POLICY = "set_path_policy"
+
 DEFAULT_PERIOD_MS = 5000
 DEFAULT_FORMAT = "delta"
 DEFAULT_POLICY = "ideal"
@@ -39,6 +44,7 @@ DEFAULT_POLICY = "ideal"
 # Minimum write cadence guard in Home Assistant (milliseconds); we cannot rely on
 # Signal K subscription periods alone to protect the recorder/UI from bursts.
 DEFAULT_MIN_UPDATE_MS = 5000
+DEFAULT_MIN_UPDATE_SECONDS = 5.0
 # Force a periodic write even when values stay within tolerance to keep HA fresh.
 DEFAULT_MAX_IDLE_WRITE_SECONDS = 300.0
 DEFAULT_STALE_SECONDS = 600.0

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 
+import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
@@ -18,6 +20,7 @@ from .const import (
     CONF_GROUPS,
     CONF_HOST,
     CONF_INSTANCE_ID,
+    CONF_PATH_POLICIES,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SSL,
@@ -32,16 +35,29 @@ from .const import (
     DEFAULT_REFRESH_INTERVAL_HOURS,
     DEFAULT_SSL,
     DEFAULT_VERIFY_SSL,
+    DOMAIN,
+    SERVICE_SET_PATH_POLICY,
     SK_PATH_NOTIFICATIONS,
 )
 from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .entity_utils import path_from_unique_id
 from .identity import build_instance_id
+from .policy import default_policy_from_entry, merge_path_policy, path_policies_from_entry
 from .rest import normalize_base_url, normalize_ws_url
 from .runtime import SignalKRuntimeData
 
 PLATFORMS: list[str] = ["sensor", "geo_location", "event"]
 _LOGGER = logging.getLogger(__name__)
+
+_SET_PATH_POLICY_SCHEMA = vol.Schema(
+    {
+        vol.Required("entry_id"): cv.string,
+        vol.Required("path"): cv.string,
+        vol.Optional("period_ms"): vol.All(vol.Coerce(int), vol.Range(min=1000)),
+        vol.Optional("min_update_seconds"): vol.All(vol.Coerce(float), vol.Range(min=0.5)),
+        vol.Optional("tolerance"): vol.Coerce(float),
+    }
+)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -88,6 +104,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.async_create_task(_async_update_subscriptions(hass, entry))
 
     entry.async_on_unload(hass.bus.async_listen(EVENT_ENTITY_REGISTRY_UPDATED, _registry_updated))
+    _async_register_services(hass)
     return True
 
 
@@ -122,7 +139,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    runtime: SignalKRuntimeData | None = entry.runtime_data
+    runtime = entry.runtime_data
     if runtime:
         await runtime.coordinator.async_stop()
         await runtime.discovery.async_stop()
@@ -135,8 +152,46 @@ async def _async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+@callback
+def _async_register_services(hass: HomeAssistant) -> None:
+    if hass.services.has_service(DOMAIN, SERVICE_SET_PATH_POLICY):
+        return
+
+    async def _async_set_path_policy(call: ServiceCall) -> None:
+        entry_id = call.data["entry_id"]
+        path = call.data["path"]
+        period_ms = call.data.get("period_ms")
+        min_update_seconds = call.data.get("min_update_seconds")
+        tolerance = call.data.get("tolerance")
+
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if not entry or entry.domain != DOMAIN:
+            raise vol.Invalid(f"Unknown Signal K entry_id: {entry_id}")
+
+        current = entry.options.get(CONF_PATH_POLICIES)
+        existing = current if isinstance(current, dict) else None
+        merged = merge_path_policy(
+            existing,
+            path=path,
+            period_ms=period_ms,
+            min_update_seconds=min_update_seconds,
+            tolerance=tolerance,
+        )
+
+        new_options = {**entry.options, CONF_PATH_POLICIES: merged}
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_PATH_POLICY,
+        _async_set_path_policy,
+        schema=_SET_PATH_POLICY_SCHEMA,
+    )
+
+
 async def _async_update_subscriptions(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    runtime: SignalKRuntimeData | None = entry.runtime_data
+    runtime = entry.runtime_data
     if not runtime:
         return
     # Derive subscriptions from enabled entities to keep WS traffic aligned with user intent.
@@ -146,6 +201,8 @@ async def _async_update_subscriptions(hass: HomeAssistant, entry: ConfigEntry) -
     paths: list[str] = []
     periods: dict[str, int] = {}
     discovery = runtime.discovery
+    default_period_ms, _ = default_policy_from_entry(entry)
+    path_policies = path_policies_from_entry(entry)
     discovery_periods: dict[str, int] = {}
     if discovery and discovery.data:
         discovery_periods = {
@@ -159,7 +216,11 @@ async def _async_update_subscriptions(hass: HomeAssistant, entry: ConfigEntry) -
         path = path_from_unique_id(registry_entry.unique_id)
         if path:
             paths.append(path)
-            periods[path] = discovery_periods.get(path, DEFAULT_PERIOD_MS)
+            override = path_policies.get(path)
+            if override is not None:
+                periods[path] = override.period_ms
+            else:
+                periods[path] = discovery_periods.get(path, default_period_ms)
     if entry.options.get(CONF_ENABLE_NOTIFICATIONS, DEFAULT_ENABLE_NOTIFICATIONS):
         if SK_PATH_NOTIFICATIONS not in paths:
             paths.append(SK_PATH_NOTIFICATIONS)

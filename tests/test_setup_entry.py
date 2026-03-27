@@ -7,6 +7,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.signalk_ha import (
     _async_entry_updated,
+    _async_register_services,
     _async_update_subscriptions,
     async_migrate_entry,
     async_setup_entry,
@@ -14,9 +15,11 @@ from custom_components.signalk_ha import (
 )
 from custom_components.signalk_ha.const import (
     CONF_BASE_URL,
+    CONF_DEFAULT_PERIOD_MS,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_HOST,
     CONF_INSTANCE_ID,
+    CONF_PATH_POLICIES,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SSL,
@@ -315,6 +318,70 @@ async def test_update_subscriptions_disable_notifications(hass) -> None:
     paths, periods = coordinator.async_update_paths.call_args.args
     assert paths == ["navigation.speedOverGround"]
     assert SK_PATH_NOTIFICATIONS not in periods
+
+
+async def test_update_subscriptions_applies_path_policy_override(hass) -> None:
+    entry = _make_entry(
+        options={
+            CONF_DEFAULT_PERIOD_MS: 2000,
+            CONF_PATH_POLICIES: {
+                "navigation.speedOverGround": {
+                    "period_ms": 1000,
+                    "min_update_seconds": 1.0,
+                }
+            },
+        }
+    )
+    entry.add_to_hass(hass)
+
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:navigation.speedOverGround",
+        suggested_object_id="speed_over_ground",
+        config_entry=entry,
+    ).entity_id
+
+    coordinator = AsyncMock()
+    entry.runtime_data = SignalKRuntimeData(
+        coordinator=coordinator,
+        discovery=SimpleNamespace(data=None),
+        auth=AsyncMock(),
+    )
+
+    await _async_update_subscriptions(hass, entry)
+
+    _, periods = coordinator.async_update_paths.call_args.args
+    assert periods["navigation.speedOverGround"] == 1000
+
+
+async def test_set_path_policy_service_updates_options_and_reloads(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    _async_register_services(hass)
+
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock()) as reload_entry:
+        await hass.services.async_call(
+            DOMAIN,
+            "set_path_policy",
+            {
+                "entry_id": entry.entry_id,
+                "path": "environment.wind.speedTrue",
+                "period_ms": 1000,
+                "min_update_seconds": 1.0,
+                "tolerance": 0.2,
+            },
+            blocking=True,
+        )
+
+    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["period_ms"] == 1000
+    assert (
+        entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
+    )
+    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["tolerance"] == 0.2
+    reload_entry.assert_awaited_once_with(entry.entry_id)
 
 
 async def test_update_subscriptions_skips_invalid_and_notification_dup(hass) -> None:
