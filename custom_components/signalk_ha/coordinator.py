@@ -46,7 +46,7 @@ from .const import (
     DOMAIN,
     notification_event_type,
 )
-from .discovery import DiscoveryResult, MetadataConflict, discover_entities
+from .discovery import DiscoveryResult, MetadataConflict, apply_entry_policies, discover_entities
 from .identity import resolve_vessel_identity
 from .parser import extract_notifications, extract_sources, extract_values
 from .rest import (
@@ -205,7 +205,7 @@ class SignalKDiscoveryCoordinator(DataUpdateCoordinator[DiscoveryResult]):
             CONF_GROUPS, self._entry.data.get(CONF_GROUPS, DEFAULT_GROUPS)
         )
         scopes = [group for group in groups if isinstance(group, str)]
-        result = discover_entities(vessel, scopes=scopes)
+        result = apply_entry_policies(discover_entities(vessel, scopes=scopes), self._entry)
         self._conflicts = result.conflicts
         self._last_refresh = dt_util.utcnow()
         return result

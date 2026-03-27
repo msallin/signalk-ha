@@ -16,12 +16,16 @@ from custom_components.signalk_ha.config_flow import _admin_access_url
 from custom_components.signalk_ha.const import (
     CONF_ACCESS_TOKEN,
     CONF_BASE_URL,
+    CONF_DEFAULT_MIN_UPDATE_SECONDS,
+    CONF_DEFAULT_PERIOD_MS,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENTITY_ID_PREFIX,
     CONF_GROUPS,
     CONF_HOST,
+    CONF_NOTIFICATION_IGNORE_PREFIXES,
     CONF_NOTIFICATION_PATHS,
     CONF_OVERRIDE_DISCOVERED_HOST,
+    CONF_PATH_POLICIES,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SERVER_ID,
@@ -32,6 +36,8 @@ from custom_components.signalk_ha.const import (
     CONF_VESSEL_NAME,
     CONF_WS_URL,
     DEFAULT_GROUPS,
+    DEFAULT_MIN_UPDATE_SECONDS,
+    DEFAULT_PERIOD_MS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
 )
@@ -1653,6 +1659,80 @@ async def test_options_flow_updates_refresh_interval(hass, enable_custom_integra
         "notifications.navigation.anchor",
         "notifications.navigation.course.arrival",
     ]
+
+
+async def test_options_flow_updates_path_policies(hass, enable_custom_integrations) -> None:
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_HOST: "sk.local",
+            CONF_PORT: 3000,
+            CONF_SSL: False,
+            CONF_VERIFY_SSL: True,
+            CONF_VESSEL_ID: "mmsi:261006533",
+            CONF_VESSEL_NAME: "ONA",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_REFRESH_INTERVAL_HOURS: 12,
+            CONF_ENABLE_NOTIFICATIONS: True,
+            CONF_NOTIFICATION_PATHS: "notifications.navigation.anchor",
+            CONF_NOTIFICATION_IGNORE_PREFIXES: "notifications.security.",
+            CONF_GROUPS: list(DEFAULT_GROUPS),
+            CONF_DEFAULT_PERIOD_MS: 2000,
+            CONF_DEFAULT_MIN_UPDATE_SECONDS: 2.0,
+            CONF_PATH_POLICIES: (
+                "environment.wind.speedTrue, period_ms=1000, "
+                "min_update_seconds=1.0, tolerance=0.2"
+            ),
+        },
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_DEFAULT_PERIOD_MS] == 2000
+    assert entry.options[CONF_DEFAULT_MIN_UPDATE_SECONDS] == 2.0
+    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["period_ms"] == 1000
+    assert (
+        entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
+    )
+    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["tolerance"] == 0.2
+
+
+async def test_options_flow_defaults_for_path_policy_fields(
+    hass, enable_custom_integrations
+) -> None:
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_HOST: "sk.local",
+            CONF_PORT: 3000,
+            CONF_SSL: False,
+            CONF_VERIFY_SSL: True,
+            CONF_VESSEL_ID: "mmsi:261006533",
+            CONF_VESSEL_NAME: "ONA",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+
+    schema = result["data_schema"]
+    fields = {key.schema: key.default() for key in schema.schema}
+    assert fields[CONF_DEFAULT_PERIOD_MS] == DEFAULT_PERIOD_MS
+    assert fields[CONF_DEFAULT_MIN_UPDATE_SECONDS] == DEFAULT_MIN_UPDATE_SECONDS
+    assert fields[CONF_PATH_POLICIES] == ""
 
 
 async def test_auth_form_falls_back_to_access_url(hass) -> None:

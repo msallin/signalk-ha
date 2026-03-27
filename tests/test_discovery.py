@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from custom_components.signalk_ha.discovery import (
     _disambiguated_name,
     _humanize_segment,
     _prefix_parts_for_path,
+    apply_entry_policies,
     convert_value,
     discover_entities,
 )
@@ -199,6 +201,41 @@ def test_discovery_sets_default_precision_for_speed_and_angle() -> None:
     assert precisions["navigation.rateOfTurn"] == 0
     assert precisions["environment.current.setMagnetic"] == 0
     assert units["environment.current.setMagnetic"] == "° M"
+
+
+def test_discovery_apply_entry_policies_defaults_and_overrides() -> None:
+    data = {
+        "environment": {
+            "wind": {
+                "speedTrue": {"value": 3.0, "meta": {"units": "m/s"}},
+                "speedApparent": {"value": 2.0, "meta": {"units": "m/s"}},
+            }
+        }
+    }
+    discovered = discover_entities(data, scopes=("environment",))
+    entry = SimpleNamespace(
+        options={
+            "default_period_ms": 2000,
+            "default_min_update_seconds": 2.0,
+            "path_policies": {
+                "environment.wind.speedTrue": {
+                    "period_ms": 1000,
+                    "min_update_seconds": 1.0,
+                    "tolerance": 0.2,
+                }
+            },
+        }
+    )
+
+    applied = apply_entry_policies(discovered, entry)
+    by_path = {entity.path: entity for entity in applied.entities}
+
+    assert by_path["environment.wind.speedTrue"].period_ms == 1000
+    assert by_path["environment.wind.speedTrue"].min_update_seconds == 1.0
+    assert by_path["environment.wind.speedTrue"].tolerance == 0.2
+
+    assert by_path["environment.wind.speedApparent"].period_ms == 2000
+    assert by_path["environment.wind.speedApparent"].min_update_seconds == 2.0
 
 
 def test_discovery_uses_compass_unit_from_schema_description() -> None:

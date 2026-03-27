@@ -1,0 +1,61 @@
+set_path_policy:
+  name: Set path policy
+  description: >
+    Configure per-path subscription and update policy for a Signal K config entry.
+    This is an advanced service for tuning update cadence and recorder churn.
+    Values are persisted to integration options and the entry is reloaded automatically.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The Signal K config entry ID to update.
+      required: true
+      example: "01J6QYV9S5W30A6C5MK8M6Y1DP"
+      selector:
+        text:
+    path:
+      name: Signal K path
+      description: Canonical Signal K path to override (for example environment.wind.speedTrue).
+      required: true
+      example: "environment.wind.speedTrue"
+      selector:
+        text:
+    period_ms:
+      name: Subscription period (ms)
+      description: >
+        Periodic server keepalive/subscription interval in milliseconds.
+        Minimum is 1000 ms.
+      required: false
+      example: 1000
+      selector:
+        number:
+          min: 1000
+          max: 600000
+          unit_of_measurement: ms
+          mode: box
+    min_update_seconds:
+      name: Minimum HA update interval (s)
+      description: >
+        Minimum seconds between Home Assistant state writes for this path.
+        Minimum is 0.5 seconds.
+      required: false
+      example: 1.0
+      selector:
+        number:
+          min: 0.5
+          max: 600
+          step: 0.1
+          unit_of_measurement: s
+          mode: box
+    tolerance:
+      name: Numeric tolerance
+      description: >
+        Absolute deadband threshold for numeric changes.
+        State updates are emitted only when value delta exceeds this number.
+      required: false
+      example: 0.1
+      selector:
+        number:
+          min: 0
+          max: 100000
+          step: 0.01
+          mode: box

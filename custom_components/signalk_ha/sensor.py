@@ -33,6 +33,7 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
+from .policy import default_policy_from_entry, path_policies_from_entry
 
 PARALLEL_UPDATES = 1
 
@@ -148,6 +149,8 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
     registry = er.async_get(hass)
     entries = er.async_entries_for_config_entry(registry, entry.entry_id)
     specs: list[DiscoveredEntity] = []
+    default_period_ms, default_min_update_seconds = default_policy_from_entry(entry)
+    path_policies = path_policies_from_entry(entry)
     for registry_entry in entries:
         if registry_entry.domain != "sensor":
             continue
@@ -155,6 +158,12 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
         if not path:
             continue
         name = registry_entry.original_name or registry_entry.name or path.split(".")[-1]
+        override = path_policies.get(path)
+        period_ms = override.period_ms if override is not None else default_period_ms
+        min_update_seconds = (
+            override.min_update_seconds if override is not None else default_min_update_seconds
+        )
+        tolerance = override.tolerance if override is not None else None
         specs.append(
             DiscoveredEntity(
                 path=path,
@@ -164,8 +173,9 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
                 device_class=None,
                 state_class=None,
                 conversion=None,
-                tolerance=None,
-                min_update_seconds=None,
+                tolerance=tolerance,
+                min_update_seconds=min_update_seconds,
+                period_ms=period_ms,
             )
         )
     return specs
