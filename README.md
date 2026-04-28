@@ -11,7 +11,7 @@
 
 To add the Signal K integration to your Home Assistant instance, use this My button:  
   
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=msallin&repository=signalk_ha&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=msallin&repository=signalk-ha&category=integration)
 
 Ensure you have [HACS installed](https://www.hacs.xyz/docs/use/configuration/basic/) in your Home Assistant instance before clicking the button.
 
