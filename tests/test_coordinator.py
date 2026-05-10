@@ -1099,6 +1099,62 @@ async def test_discovery_coordinator_updates_identity(hass) -> None:
     assert discovery.last_refresh is not None
 
 
+async def test_discovery_coordinator_applies_override_flag_on_refresh(hass) -> None:
+    from custom_components.signalk_ha.const import (
+        CONF_ENTITY_ID_PREFIX,
+        CONF_OVERRIDE_DISCOVERED_HOST,
+    )
+
+    # User chose to override during setup; subsequent refreshes must keep using
+    # the entered host even when the SK server still reports its own.
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_HOST: "192.168.1.5",
+            CONF_PORT: 3000,
+            CONF_SSL: False,
+            CONF_VERIFY_SSL: True,
+            CONF_BASE_URL: "http://192.168.1.5:3000/signalk/v1/api/",
+            CONF_WS_URL: "ws://192.168.1.5:3000/signalk/v1/stream?subscribe=none",
+            CONF_VESSEL_ID: "mmsi:261006533",
+            CONF_VESSEL_NAME: "ONA",
+            CONF_ENTITY_ID_PREFIX: "",
+            CONF_OVERRIDE_DISCOVERED_HOST: True,
+        },
+    )
+    entry.add_to_hass(hass)
+    discovery = SignalKDiscoveryCoordinator(hass, entry, Mock(), SignalKAuthManager(None))
+    server_reported = DiscoveryInfo(
+        base_url="http://rpi.local:3000/signalk/v1/api/",
+        ws_url="ws://rpi.local:3000/signalk/v1/stream?subscribe=none",
+        server_id="signalk-server-node",
+        server_version="2.20.0",
+    )
+
+    with (
+        patch(
+            "custom_components.signalk_ha.coordinator.async_fetch_discovery",
+            new=AsyncMock(return_value=server_reported),
+        ),
+        patch(
+            "custom_components.signalk_ha.coordinator.async_fetch_vessel_self",
+            new=AsyncMock(return_value={"name": "ONA", "mmsi": "261006533"}),
+        ),
+        patch(
+            "custom_components.signalk_ha.coordinator.discover_entities",
+            return_value=DiscoveryResult(entities=[], conflicts=[]),
+        ),
+        patch.object(hass.config_entries, "async_update_entry") as update_entry,
+    ):
+        await discovery._async_update_data()
+
+    # The stored URLs should still point at 192.168.1.5, not rpi.local.
+    if update_entry.called:
+        updated = update_entry.call_args.kwargs["data"]
+        assert updated.get(CONF_BASE_URL, "").startswith("http://192.168.1.5:3000/")
+        assert updated.get(CONF_WS_URL, "").startswith("ws://192.168.1.5:3000/")
+
+
 async def test_discovery_coordinator_no_entry_updates_when_unchanged(hass) -> None:
     base = _make_entry().data
     entry = MockConfigEntry(

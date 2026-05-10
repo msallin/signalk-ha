@@ -26,13 +26,22 @@
       "auth": {
         "title": "Signal K Authorization",
         "description": "This Signal K server requires approval. Open {approval_url} (or the Signal K admin UI) and approve the access request. Home Assistant continues automatically once approved."
+      },
+      "override_host": {
+        "title": "Signal K reports a different address",
+        "description": "You entered {entered}, but the Signal K server reports its own address as {discovered}. If Home Assistant cannot resolve the reported address (common when both run in Docker and the server uses a .local mDNS name), keep this option enabled to use the address you entered. Disable it to trust the server-reported address.",
+        "data": {
+          "override_discovered_host": "Use the address I entered"
+        }
       }
     },
     "progress": {
       "auth": "Waiting for approval. Open {approval_url} (or the Signal K admin UI) and approve the access request."
     },
     "error": {
-      "cannot_connect": "Failed to connect. Check host, port, and TLS.",
+      "cannot_connect": "Failed to connect. Check the host, port, and TLS settings.",
+      "cannot_resolve": "Could not resolve the host. If the address ends in .local (mDNS), Home Assistant running in Docker often cannot resolve it. Try the server's IP address instead, or run Home Assistant with host networking.",
+      "connection_timeout": "Connection timed out. The address may be reachable but the Signal K server did not respond within 5 seconds.",
       "discovery_failed": "Signal K discovery did not return endpoints.",
       "invalid_response": "Signal K response was invalid.",
       "auth_required": "This Signal K server requires credentials before access requests can be created.",
@@ -46,7 +55,9 @@
       "auth_not_supported": "Authentication is required but access requests are not supported.",
       "reauth_successful": "Authentication updated.",
       "auth_cancelled": "Authentication was cancelled.",
-      "cannot_connect": "Failed to connect. Check host, port, and TLS.",
+      "cannot_connect": "Failed to connect. Check the host, port, and TLS settings.",
+      "cannot_resolve": "Could not resolve the host. If the address ends in .local (mDNS), Home Assistant running in Docker often cannot resolve it. Try the server's IP address instead.",
+      "connection_timeout": "Connection timed out. The address may be reachable but the Signal K server did not respond within 5 seconds.",
       "zeroconf_unsupported": "This Signal K discovery record is not supported."
     }
   },

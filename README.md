@@ -141,6 +141,17 @@ Diagnostic sensors summarize connection health and message flow (disabled by def
 - Use the Diagnostics panel for connection state, counters, and last update timestamps.
 - Reload the integration after connection settings change.
 
+### Docker networking and `.local` hostnames
+
+If Home Assistant runs in Docker (bridge mode) and the Signal K server is on a `.local` (mDNS) name, Home Assistant typically cannot resolve that name even when the host can. Symptoms: the config flow reports that the host could not be resolved, while `curl` from the host works.
+
+You can connect by entering the server's LAN IP address. When the address you enter does not match what the Signal K discovery document reports (which is common, since SK servers usually advertise their hostname), the config flow shows an extra step asking which address to use. Choose "Use the address I entered" so Home Assistant keeps using the IP for both REST and WebSocket, bypassing mDNS entirely.
+
+Alternative fixes:
+
+1. Run Home Assistant with `--network=host` (compose: `network_mode: host`) so it shares the host's network namespace.
+2. Place both containers on the same user-defined Docker network and address Signal K by container name.
+
 ## Removal
 
 1. Disable the integration in Home Assistant.

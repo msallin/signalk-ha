@@ -16,6 +16,11 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+try:  # ClientConnectorDNSError was added in aiohttp 3.10.
+    from aiohttp import ClientConnectorDNSError
+except ImportError:  # pragma: no cover - older aiohttp
+    ClientConnectorDNSError = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:  # pragma: no cover - typing-only imports
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
@@ -37,6 +42,7 @@ from .const import (
     CONF_INSTANCE_ID,
     CONF_NOTIFICATION_IGNORE_PREFIXES,
     CONF_NOTIFICATION_PATHS,
+    CONF_OVERRIDE_DISCOVERED_HOST,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SERVER_ID,
@@ -68,10 +74,12 @@ from .rest import (
     DiscoveryInfo,
     async_fetch_discovery,
     async_fetch_vessel_self,
+    discovery_origin_matches,
     normalize_base_url,
     normalize_host_input,
     normalize_server_url,
     normalize_ws_url,
+    rewrite_discovery_origin,
 )
 from .schema import SCHEMA_GROUPS
 
@@ -88,6 +96,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._auth_task: asyncio.Task[tuple[str, dict[str, Any]]] | None = None
         self._zeroconf_defaults: dict[str, Any] | None = None
         self._allow_ssl_fallback = False
+        self._pending_override: dict[str, Any] | None = None
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         errors: dict[str, str] = {}
@@ -109,80 +118,48 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     server_url,
                     verify_ssl=verify_ssl,
                 )
-            except (asyncio.TimeoutError, ClientConnectorError, ClientError, OSError, ssl.SSLError):
-                errors["base"] = "cannot_connect"
+            except (
+                asyncio.TimeoutError,
+                ClientConnectorError,
+                ClientError,
+                OSError,
+                ssl.SSLError,
+            ) as exc:
+                errors["base"] = _classify_connection_error(exc)
             except AuthRequired:
                 errors["base"] = "cannot_connect"
             except ValueError:
                 errors["base"] = "discovery_failed"
             else:
-                base_url = discovery.base_url
-                ws_url = discovery.ws_url
-                try:
-                    vessel_data, verify_ssl = await self._async_call_with_ssl_fallback(
-                        self._async_validate_connection,
-                        base_url,
-                        verify_ssl=verify_ssl,
-                    )
-                except AuthRequired:
-                    try:
-                        access_request, verify_ssl = await self._async_call_with_ssl_fallback(
-                            self._async_start_access_request,
-                            base_url,
-                            host=host,
-                            port=port,
-                            verify_ssl=verify_ssl,
-                        )
-                    except AccessRequestUnsupported:
-                        errors["base"] = "auth_not_supported"
-                    except AuthRequired:
-                        errors["base"] = "auth_required"
-                    except (asyncio.TimeoutError, ClientConnectorError, ClientError, OSError):
-                        errors["base"] = "cannot_connect"
-                    else:
-                        groups = _normalize_groups(user_input.get(CONF_GROUPS))
-                        self._pending_data = {
-                            CONF_HOST: host,
-                            CONF_PORT: port,
-                            CONF_SSL: use_ssl,
-                            CONF_VERIFY_SSL: verify_ssl,
-                            CONF_BASE_URL: base_url,
-                            CONF_WS_URL: ws_url,
-                            CONF_SERVER_ID: discovery.server_id,
-                            CONF_SERVER_VERSION: discovery.server_version,
-                            CONF_GROUPS: groups,
-                            CONF_ENTITY_ID_PREFIX: entity_id_prefix,
-                        }
-                        self._access_request = access_request
-                        self._auth_task = None
-                        return await self.async_step_auth()
-                except (
-                    asyncio.TimeoutError,
-                    ClientConnectorError,
-                    ClientError,
-                    OSError,
-                    ssl.SSLError,
-                ):
-                    errors["base"] = "cannot_connect"
-                except ValueError:
-                    errors["base"] = "invalid_response"
-                else:
-                    groups = _normalize_groups(user_input.get(CONF_GROUPS))
-                    return await self._async_start_notifications_step(
-                        host=host,
-                        port=port,
-                        use_ssl=use_ssl,
-                        verify_ssl=verify_ssl,
-                        base_url=base_url,
-                        ws_url=ws_url,
-                        vessel_data=vessel_data,
-                        access_token=None,
-                        groups=groups,
-                        entity_id_prefix=entity_id_prefix,
-                        server_id=discovery.server_id,
-                        server_version=discovery.server_version,
-                    )
+                groups = _normalize_groups(user_input.get(CONF_GROUPS))
+                if not discovery_origin_matches(discovery, host, port, use_ssl):
+                    # The server returned a hostname/port that differs from what
+                    # the user typed. Stop and let them choose — auto-rewriting
+                    # would silently change the connection target.
+                    self._pending_override = {
+                        CONF_HOST: host,
+                        CONF_PORT: port,
+                        CONF_SSL: use_ssl,
+                        CONF_VERIFY_SSL: verify_ssl,
+                        CONF_GROUPS: groups,
+                        CONF_ENTITY_ID_PREFIX: entity_id_prefix,
+                        "discovery": discovery,
+                    }
+                    return await self.async_step_override_host()
+                return await self._async_continue_after_discovery(
+                    host=host,
+                    port=port,
+                    use_ssl=use_ssl,
+                    verify_ssl=verify_ssl,
+                    discovery=discovery,
+                    groups=groups,
+                    entity_id_prefix=entity_id_prefix,
+                    override_discovered_host=False,
+                )
 
+        return self._show_user_form(errors=errors)
+
+    def _show_user_form(self, *, errors: dict[str, str] | None = None) -> FlowResult:
         defaults = self._zeroconf_defaults or {}
         group_options = _group_options()
         schema = vol.Schema(
@@ -204,7 +181,133 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ): cv.string,
             }
         )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors or {})
+
+    async def async_step_override_host(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if not self._pending_override:
+            return self.async_abort(reason="auth_cancelled")
+
+        pending = self._pending_override
+        discovery: DiscoveryInfo = pending["discovery"]
+
+        if user_input is not None:
+            override = bool(user_input.get(CONF_OVERRIDE_DISCOVERED_HOST, False))
+            self._pending_override = None
+            effective_discovery = (
+                rewrite_discovery_origin(
+                    discovery, pending[CONF_HOST], pending[CONF_PORT], pending[CONF_SSL]
+                )
+                if override
+                else discovery
+            )
+            return await self._async_continue_after_discovery(
+                host=pending[CONF_HOST],
+                port=pending[CONF_PORT],
+                use_ssl=pending[CONF_SSL],
+                verify_ssl=pending[CONF_VERIFY_SSL],
+                discovery=effective_discovery,
+                groups=pending[CONF_GROUPS],
+                entity_id_prefix=pending[CONF_ENTITY_ID_PREFIX],
+                override_discovered_host=override,
+            )
+
+        entered = _format_origin(pending[CONF_HOST], pending[CONF_PORT], pending[CONF_SSL])
+        discovered = _format_origin_from_url(discovery.base_url)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_OVERRIDE_DISCOVERED_HOST, default=True): cv.boolean,
+            }
+        )
+        return self.async_show_form(
+            step_id="override_host",
+            data_schema=schema,
+            description_placeholders={"entered": entered, "discovered": discovered},
+        )
+
+    async def _async_continue_after_discovery(
+        self,
+        *,
+        host: str,
+        port: int,
+        use_ssl: bool,
+        verify_ssl: bool,
+        discovery: DiscoveryInfo,
+        groups: list[str],
+        entity_id_prefix: str,
+        override_discovered_host: bool,
+    ) -> FlowResult:
+        base_url = discovery.base_url
+        ws_url = discovery.ws_url
+        try:
+            vessel_data, verify_ssl = await self._async_call_with_ssl_fallback(
+                self._async_validate_connection,
+                base_url,
+                verify_ssl=verify_ssl,
+            )
+        except AuthRequired:
+            try:
+                access_request, verify_ssl = await self._async_call_with_ssl_fallback(
+                    self._async_start_access_request,
+                    base_url,
+                    host=host,
+                    port=port,
+                    verify_ssl=verify_ssl,
+                )
+            except AccessRequestUnsupported:
+                return self._show_user_form(errors={"base": "auth_not_supported"})
+            except AuthRequired:
+                return self._show_user_form(errors={"base": "auth_required"})
+            except (
+                asyncio.TimeoutError,
+                ClientConnectorError,
+                ClientError,
+                OSError,
+            ) as exc:
+                return self._show_user_form(errors={"base": _classify_connection_error(exc)})
+            self._pending_data = {
+                CONF_HOST: host,
+                CONF_PORT: port,
+                CONF_SSL: use_ssl,
+                CONF_VERIFY_SSL: verify_ssl,
+                CONF_BASE_URL: base_url,
+                CONF_WS_URL: ws_url,
+                CONF_SERVER_ID: discovery.server_id,
+                CONF_SERVER_VERSION: discovery.server_version,
+                CONF_GROUPS: groups,
+                CONF_ENTITY_ID_PREFIX: entity_id_prefix,
+                CONF_OVERRIDE_DISCOVERED_HOST: override_discovered_host,
+            }
+            self._access_request = access_request
+            self._auth_task = None
+            return await self.async_step_auth()
+        except (
+            asyncio.TimeoutError,
+            ClientConnectorError,
+            ClientError,
+            OSError,
+            ssl.SSLError,
+        ) as exc:
+            return self._show_user_form(errors={"base": _classify_connection_error(exc)})
+        except ValueError:
+            return self._show_user_form(errors={"base": "invalid_response"})
+
+        return await self._async_start_notifications_step(
+            host=host,
+            port=port,
+            use_ssl=use_ssl,
+            verify_ssl=verify_ssl,
+            base_url=base_url,
+            ws_url=ws_url,
+            vessel_data=vessel_data,
+            access_token=None,
+            groups=groups,
+            entity_id_prefix=entity_id_prefix,
+            server_id=discovery.server_id,
+            server_version=discovery.server_version,
+            override_discovered_host=override_discovered_host,
+        )
 
     async def async_step_zeroconf(self, discovery_info: "ZeroconfServiceInfo") -> FlowResult:
         host = _zeroconf_host(discovery_info)
@@ -297,20 +400,28 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "auth_not_supported"
             except AuthRequired:
                 errors["base"] = "auth_required"
-            except (asyncio.TimeoutError, ClientConnectorError, ClientError, OSError):
-                errors["base"] = "cannot_connect"
+            except (
+                asyncio.TimeoutError,
+                ClientConnectorError,
+                ClientError,
+                OSError,
+            ) as exc:
+                errors["base"] = _classify_connection_error(exc)
         except AccessRequestUnsupported:
             errors["base"] = "auth_not_supported"
         except asyncio.TimeoutError:
             errors["base"] = "auth_timeout"
         except AuthRequired:
             errors["base"] = "auth_failed"
-        except (ClientConnectorError, ClientError, OSError, ssl.SSLError):
-            errors["base"] = "cannot_connect"
+        except (ClientConnectorError, ClientError, OSError, ssl.SSLError) as exc:
+            errors["base"] = _classify_connection_error(exc)
         except ValueError:
             errors["base"] = "invalid_response"
         else:
             self._auth_task = None
+            override_discovered_host = bool(
+                self._pending_data.get(CONF_OVERRIDE_DISCOVERED_HOST, False)
+            )
             if self._reauth_entry is not None:
                 return await self._async_finish_setup(
                     host=self._pending_data[CONF_HOST],
@@ -327,6 +438,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     server_id=self._pending_data.get(CONF_SERVER_ID),
                     server_version=self._pending_data.get(CONF_SERVER_VERSION),
+                    override_discovered_host=override_discovered_host,
                 )
             return await self._async_start_notifications_step(
                 host=self._pending_data[CONF_HOST],
@@ -343,6 +455,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 server_id=self._pending_data.get(CONF_SERVER_ID),
                 server_version=self._pending_data.get(CONF_SERVER_VERSION),
+                override_discovered_host=override_discovered_host,
             )
 
         self._auth_task = None
@@ -383,6 +496,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 server_id=self._pending_data.get(CONF_SERVER_ID),
                 server_version=self._pending_data.get(CONF_SERVER_VERSION),
+                override_discovered_host=bool(
+                    self._pending_data.get(CONF_OVERRIDE_DISCOVERED_HOST, False)
+                ),
                 notification_options=options,
             )
 
@@ -429,8 +545,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="auth_not_supported")
         except AuthRequired:
             return self.async_abort(reason="auth_required")
-        except (asyncio.TimeoutError, ClientConnectorError, ClientError, OSError):
-            return self.async_abort(reason="cannot_connect")
+        except (asyncio.TimeoutError, ClientConnectorError, ClientError, OSError) as exc:
+            return self.async_abort(reason=_classify_connection_error(exc))
 
         self._pending_data = {
             CONF_HOST: data[CONF_HOST],
@@ -443,6 +559,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_ENTITY_ID_PREFIX: data.get(CONF_ENTITY_ID_PREFIX, DEFAULT_ENTITY_ID_PREFIX),
             CONF_SERVER_ID: data.get(CONF_SERVER_ID),
             CONF_SERVER_VERSION: data.get(CONF_SERVER_VERSION),
+            CONF_OVERRIDE_DISCOVERED_HOST: bool(data.get(CONF_OVERRIDE_DISCOVERED_HOST, False)),
         }
         self._access_request = access_request
         self._auth_task = None
@@ -493,6 +610,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entity_id_prefix: str,
         server_id: str | None,
         server_version: str | None,
+        override_discovered_host: bool = False,
     ) -> FlowResult:
         self._pending_data = {
             CONF_HOST: host,
@@ -505,6 +623,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_ENTITY_ID_PREFIX: entity_id_prefix,
             CONF_SERVER_ID: server_id,
             CONF_SERVER_VERSION: server_version,
+            CONF_OVERRIDE_DISCOVERED_HOST: override_discovered_host,
         }
         self._pending_vessel_data = vessel_data
         self._pending_access_token = access_token
@@ -525,6 +644,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entity_id_prefix: str,
         server_id: str | None,
         server_version: str | None,
+        override_discovered_host: bool = False,
         notification_options: dict[str, Any] | None = None,
     ) -> FlowResult:
         identity = resolve_vessel_identity(vessel_data, base_url)
@@ -549,6 +669,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_REFRESH_INTERVAL_HOURS: DEFAULT_REFRESH_INTERVAL_HOURS,
             CONF_GROUPS: groups,
             CONF_ENTITY_ID_PREFIX: entity_id_prefix,
+            CONF_OVERRIDE_DISCOVERED_HOST: override_discovered_host,
         }
         if access_token:
             data[CONF_ACCESS_TOKEN] = access_token
@@ -668,6 +789,34 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
+
+
+def _format_origin(host: str, port: int, use_ssl: bool) -> str:
+    """Render a (host, port, ssl) triple as ``scheme://host:port`` for UI text."""
+    scheme = "https" if use_ssl else "http"
+    return f"{scheme}://{host}:{port}"
+
+
+def _format_origin_from_url(url: str) -> str:
+    """Render the origin (``scheme://host:port``) of an arbitrary URL for UI text."""
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    return f"{parsed.scheme}://{host}:{port}"
+
+
+def _classify_connection_error(exc: BaseException) -> str:
+    """Map a connection-related exception to a user-facing error key.
+
+    Distinguishing DNS resolution failures from generic connection errors
+    matters most when the server is on a hostname that the HA Docker container
+    cannot resolve (e.g. ``.local`` mDNS names from a bridge-network container).
+    """
+    if ClientConnectorDNSError is not None and isinstance(exc, ClientConnectorDNSError):
+        return "cannot_resolve"
+    if isinstance(exc, asyncio.TimeoutError):
+        return "connection_timeout"
+    return "cannot_connect"
 
 
 def _admin_access_url(base_url: str) -> str | None:

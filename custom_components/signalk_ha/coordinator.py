@@ -28,6 +28,7 @@ from .const import (
     CONF_ENABLE_NOTIFICATIONS,
     CONF_GROUPS,
     CONF_HOST,
+    CONF_OVERRIDE_DISCOVERED_HOST,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SERVER_ID,
@@ -54,6 +55,7 @@ from .rest import (
     normalize_base_url,
     normalize_server_url,
     normalize_ws_url,
+    rewrite_discovery_origin,
 )
 from .subscription import build_subscribe_payload
 
@@ -147,6 +149,11 @@ class SignalKDiscoveryCoordinator(DataUpdateCoordinator[DiscoveryResult]):
         except (AuthRequired, ClientError, OSError, ssl.SSLError, asyncio.TimeoutError) as err:
             _LOGGER.debug("Signal K discovery refresh failed: %s", err)
             discovery = None
+
+        if discovery and self._entry.data.get(CONF_OVERRIDE_DISCOVERED_HOST):
+            # Honour the user's setup-time choice to keep their entered host even
+            # when the SK server reports a different one (e.g. unresolvable mDNS).
+            discovery = rewrite_discovery_origin(discovery, cfg.host, cfg.port, cfg.ssl)
 
         if discovery:
             base_url = discovery.base_url
