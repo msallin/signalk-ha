@@ -21,6 +21,7 @@ from custom_components.signalk_ha.const import (
     CONF_GROUPS,
     CONF_HOST,
     CONF_NOTIFICATION_PATHS,
+    CONF_OVERRIDE_DISCOVERED_HOST,
     CONF_PORT,
     CONF_REFRESH_INTERVAL_HOURS,
     CONF_SERVER_ID,
@@ -29,6 +30,7 @@ from custom_components.signalk_ha.const import (
     CONF_VERIFY_SSL,
     CONF_VESSEL_ID,
     CONF_VESSEL_NAME,
+    CONF_WS_URL,
     DEFAULT_GROUPS,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
@@ -624,7 +626,7 @@ async def test_config_flow_auth_required(hass, enable_custom_integrations) -> No
     assert result["errors"]["base"] == "auth_required"
 
 
-async def test_config_flow_access_request_cannot_connect(hass, enable_custom_integrations) -> None:
+async def test_config_flow_access_request_timeout(hass, enable_custom_integrations) -> None:
     flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     with (
         patch(
@@ -655,7 +657,7 @@ async def test_config_flow_access_request_cannot_connect(hass, enable_custom_int
         )
 
     assert result["type"] == FlowResultType.FORM
-    assert result["errors"]["base"] == "cannot_connect"
+    assert result["errors"]["base"] == "connection_timeout"
 
 
 async def test_config_flow_invalid_response(hass, enable_custom_integrations) -> None:
@@ -737,7 +739,204 @@ async def test_config_flow_discovery_timeout(hass, enable_custom_integrations) -
         )
 
     assert result["type"] == FlowResultType.FORM
-    assert result["errors"]["base"] == "cannot_connect"
+    assert result["errors"]["base"] == "connection_timeout"
+
+
+async def test_config_flow_discovery_dns_failure(hass, enable_custom_integrations) -> None:
+    aiohttp = pytest.importorskip("aiohttp")
+    if not hasattr(aiohttp, "ClientConnectorDNSError"):
+        pytest.skip("aiohttp <3.10 lacks ClientConnectorDNSError")
+
+    # Bypass __init__ to avoid constructing aiohttp's internal ConnectionKey.
+    dns_error = aiohttp.ClientConnectorDNSError.__new__(aiohttp.ClientConnectorDNSError)
+
+    flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    with (
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_discovery",
+            new=AsyncMock(side_effect=dns_error),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_get_clientsession",
+            return_value=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            flow["flow_id"],
+            {
+                CONF_HOST: "rpi.local",
+                CONF_PORT: 3000,
+                CONF_SSL: False,
+                CONF_VERIFY_SSL: True,
+            },
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"]["base"] == "cannot_resolve"
+
+
+def test_classify_connection_error_dns() -> None:
+    aiohttp = pytest.importorskip("aiohttp")
+    if not hasattr(aiohttp, "ClientConnectorDNSError"):
+        pytest.skip("aiohttp <3.10 lacks ClientConnectorDNSError")
+
+    from custom_components.signalk_ha.config_flow import _classify_connection_error
+
+    dns_error = aiohttp.ClientConnectorDNSError.__new__(aiohttp.ClientConnectorDNSError)
+    assert _classify_connection_error(dns_error) == "cannot_resolve"
+
+
+def test_classify_connection_error_timeout() -> None:
+    from custom_components.signalk_ha.config_flow import _classify_connection_error
+
+    assert _classify_connection_error(asyncio.TimeoutError()) == "connection_timeout"
+
+
+def test_classify_connection_error_generic() -> None:
+    from custom_components.signalk_ha.config_flow import _classify_connection_error
+
+    assert _classify_connection_error(OSError("boom")) == "cannot_connect"
+    assert _classify_connection_error(ssl.SSLError("bad cert")) == "cannot_connect"
+
+
+async def test_config_flow_origin_mismatch_offers_override(
+    hass, enable_custom_integrations
+) -> None:
+    # User typed an IP but the SK server reports its mDNS name.
+    discovery = _discovery_info(host="rpi.local", port=3000, use_ssl=False)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    with (
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_discovery",
+            new=AsyncMock(return_value=discovery),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_get_clientsession",
+            return_value=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_HOST: "192.168.1.5",
+                CONF_PORT: 3000,
+                CONF_SSL: False,
+                CONF_VERIFY_SSL: True,
+            },
+        )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "override_host"
+    assert result["description_placeholders"]["entered"] == "http://192.168.1.5:3000"
+    assert result["description_placeholders"]["discovered"] == "http://rpi.local:3000"
+
+
+async def test_config_flow_override_accepted_uses_entered_host(
+    hass, enable_custom_integrations
+) -> None:
+    discovery = _discovery_info(host="rpi.local", port=3000, use_ssl=False)
+    vessel_data = {"name": "ONA", "mmsi": "261006533"}
+
+    flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    with (
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_discovery",
+            new=AsyncMock(return_value=discovery),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_vessel_self",
+            new=AsyncMock(return_value=vessel_data),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_get_clientsession",
+            return_value=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            flow["flow_id"],
+            {
+                CONF_HOST: "192.168.1.5",
+                CONF_PORT: 3000,
+                CONF_SSL: False,
+                CONF_VERIFY_SSL: True,
+            },
+        )
+        assert result["step_id"] == "override_host"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_OVERRIDE_DISCOVERED_HOST: True},
+        )
+        assert result["step_id"] == "notifications"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], NOTIFICATION_STEP_INPUT
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_BASE_URL] == "http://192.168.1.5:3000/signalk/v1/api/"
+    assert result["data"][CONF_WS_URL].startswith("ws://192.168.1.5:3000/signalk/v1/stream")
+    assert result["data"][CONF_OVERRIDE_DISCOVERED_HOST] is True
+
+
+async def test_config_flow_override_declined_keeps_discovered_host(
+    hass, enable_custom_integrations
+) -> None:
+    discovery = _discovery_info(host="rpi.local", port=3000, use_ssl=False)
+    vessel_data = {"name": "ONA", "mmsi": "261006533"}
+
+    flow = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+
+    with (
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_discovery",
+            new=AsyncMock(return_value=discovery),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_fetch_vessel_self",
+            new=AsyncMock(return_value=vessel_data),
+        ),
+        patch(
+            "custom_components.signalk_ha.config_flow.async_get_clientsession",
+            return_value=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            flow["flow_id"],
+            {
+                CONF_HOST: "192.168.1.5",
+                CONF_PORT: 3000,
+                CONF_SSL: False,
+                CONF_VERIFY_SSL: True,
+            },
+        )
+        assert result["step_id"] == "override_host"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_OVERRIDE_DISCOVERED_HOST: False},
+        )
+        assert result["step_id"] == "notifications"
+
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], NOTIFICATION_STEP_INPUT
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_BASE_URL].startswith("http://rpi.local:3000/")
+    assert result["data"][CONF_OVERRIDE_DISCOVERED_HOST] is False
+
+
+async def test_override_host_step_aborts_without_pending_data(hass) -> None:
+    from custom_components.signalk_ha.config_flow import ConfigFlow
+
+    flow = ConfigFlow()
+    flow.hass = hass
+    result = await flow.async_step_override_host()
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "auth_cancelled"
 
 
 async def test_config_flow_discovery_auth_required(hass, enable_custom_integrations) -> None:
@@ -1062,7 +1261,7 @@ async def test_config_flow_auth_rejected(hass, enable_custom_integrations) -> No
     [
         (AccessRequestUnsupported(), "auth_not_supported"),
         (AuthRequired(), "auth_required"),
-        (asyncio.TimeoutError(), "cannot_connect"),
+        (asyncio.TimeoutError(), "connection_timeout"),
     ],
 )
 async def test_config_flow_auth_rejected_retry_failure(
@@ -1318,7 +1517,7 @@ async def test_reauth_missing_entry_aborts(hass) -> None:
     assert result["reason"] == "auth_cancelled"
 
 
-async def test_reauth_cannot_connect(hass, enable_custom_integrations) -> None:
+async def test_reauth_connection_timeout(hass, enable_custom_integrations) -> None:
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     entry = MockConfigEntry(
@@ -1349,7 +1548,7 @@ async def test_reauth_cannot_connect(hass, enable_custom_integrations) -> None:
         )
 
     assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "cannot_connect"
+    assert result["reason"] == "connection_timeout"
 
 
 async def test_reauth_not_supported(hass, enable_custom_integrations) -> None:

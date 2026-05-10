@@ -20,6 +20,7 @@ CONF_GROUPS = "groups"
 CONF_SERVER_ID = "server_id"
 CONF_SERVER_VERSION = "server_version"
 CONF_ENTITY_ID_PREFIX = "entity_id_prefix"
+CONF_OVERRIDE_DISCOVERED_HOST = "override_discovered_host"
 
 DEFAULT_PORT = 3000
 DEFAULT_SSL = False
