@@ -85,44 +85,52 @@ The churn‑reduction pipeline has multiple layers that work together:
 
 - Server-side throttling: subscriptions send `minPeriod` (max rate) and `period` (keepalive) so the Signal K server reduces bursts before HA sees them.
 - Coordinator coalescing: updates are buffered for a short window so many deltas collapse into a single HA state update.
-- Entity throttling: each entity enforces `min_update_ms` plus per‑path tolerances so tiny changes do not trigger writes.
+- Entity throttling: each entity enforces a minimum update interval plus a per‑path tolerance so tiny value changes do not trigger writes.
 - Staleness: if updates stop, entities are marked unavailable after `stale_seconds`.
 
-### Path Policy Tuning
+The global defaults for subscription period and minimum update interval are set in Options. Individual paths can be tuned further with per‑path policy overrides (see below).
 
-You can tune update behavior globally and per path:
+### Path policy tuning
 
-- Global defaults: `Default subscription period (ms)` and `Default minimum update interval (seconds)` in integration options.
-- Per-path overrides: `Path policy overrides` in options.
+You can tune update behavior for all sensors globally, or override individual paths:
 
-Example options text:
+- **Global defaults**: set `Default subscription period (ms)` and `Default minimum update interval (seconds)` in integration options. These apply to every sensor that has no explicit override.
+- **Per-path overrides**: add lines to `Path policy overrides` in options, one path per line.
+
+Each override line has the form:
+
+```text
+path, period_ms=<ms>, min_update_seconds=<s>, tolerance=<value>
+```
+
+All three fields are optional. Omitted fields inherit the configured global defaults, not the hard-coded constants. `tolerance` is the minimum absolute change required to trigger a state write; it must be zero or positive (0 disables the filter).
+
+Example:
 
 ```text
 environment.wind.speedTrue, period_ms=1000, min_update_seconds=1.0, tolerance=0.2
 navigation.speedOverGround, period_ms=2000
+navigation.headingTrue, tolerance=0.5
 ```
 
-Partial overrides inherit the entry defaults. For example, a line with only `tolerance=...` keeps the configured global period and minimum update interval.
+### Tuning path policies via service
 
-### Service: set_path_policy
+You can also set or update a single path policy from Developer Tools without editing the options text manually. The service persists the change to options and reloads the integration automatically.
 
-Use `signalk_ha.set_path_policy` to persist or update one path policy from Developer Tools.
+Open Developer Tools > Actions, select `signalk_ha.set_path_policy`, and fill in the fields:
 
-Required fields:
+| Field | Required | Description |
+| --- | --- | --- |
+| `entry_id` | Yes | Signal K config entry ID (visible in Settings > Devices & Services > Integration info). |
+| `path` | Yes | Canonical Signal K path to tune. |
+| `period_ms` | No | Subscription keepalive period in milliseconds (minimum `1000`). |
+| `min_update_seconds` | No | Minimum time between HA state writes in seconds (minimum `0.5`). |
+| `tolerance` | No | Minimum absolute value change to trigger a write (minimum `0`). |
 
-- `entry_id`: Signal K config entry ID.
-- `path`: Canonical Signal K path.
-
-Optional fields:
-
-- `period_ms` (minimum `1000`)
-- `min_update_seconds` (minimum `0.5`)
-- `tolerance` (minimum `0`)
-
-Example service call:
+For example, to reduce how often a noisy true-wind sensor writes to the recorder:
 
 ```yaml
-service: signalk_ha.set_path_policy
+action: signalk_ha.set_path_policy
 data:
   entry_id: 01J6QYV9S5W30A6C5MK8M6Y1DP
   path: environment.wind.speedTrue
@@ -130,8 +138,6 @@ data:
   min_update_seconds: 1.0
   tolerance: 0.2
 ```
-
-The integration stores the override in options and reloads the entry automatically.
 
 ### Notifications
 
