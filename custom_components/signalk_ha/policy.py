@@ -33,6 +33,7 @@ def default_policy_from_entry(entry: Any) -> tuple[int, float]:
 
 def path_policies_from_entry(entry: Any) -> dict[str, PathPolicy]:
     options = _entry_options(entry)
+    default_period_ms, default_min_update_seconds = default_policy_from_entry(entry)
     raw = options.get(CONF_PATH_POLICIES)
     if not isinstance(raw, dict):
         return {}
@@ -43,11 +44,11 @@ def path_policies_from_entry(entry: Any) -> dict[str, PathPolicy]:
             continue
         if not isinstance(cfg, dict):
             continue
-        period_ms = _coerce_period_ms(cfg.get("period_ms"), DEFAULT_PERIOD_MS)
+        period_ms = _coerce_period_ms(cfg.get("period_ms"), default_period_ms)
         min_update_seconds = _coerce_min_update_seconds(
-            cfg.get("min_update_seconds"), DEFAULT_MIN_UPDATE_SECONDS
+            cfg.get("min_update_seconds"), default_min_update_seconds
         )
-        tolerance = _coerce_optional_float(cfg.get("tolerance"))
+        tolerance = _coerce_optional_float(cfg.get("tolerance"), min_value=0.0)
         policies[normalized_path] = PathPolicy(
             path=normalized_path,
             period_ms=period_ms,
@@ -81,7 +82,10 @@ def merge_path_policy(
             min_update_seconds, DEFAULT_MIN_UPDATE_SECONDS
         )
     if tolerance is not None:
-        current["tolerance"] = float(tolerance)
+        parsed_tolerance = _coerce_optional_float(tolerance, min_value=0.0)
+        if parsed_tolerance is None:
+            raise ValueError("tolerance must be a non-negative number")
+        current["tolerance"] = parsed_tolerance
 
     merged[normalized_path] = current
     return merged
@@ -117,7 +121,7 @@ def parse_path_policies_text(text: str | None) -> dict[str, dict[str, Any]]:
                     value, DEFAULT_MIN_UPDATE_SECONDS
                 )
             elif key_lower == "tolerance":
-                parsed = _coerce_optional_float(value)
+                parsed = _coerce_optional_float(value, min_value=0.0)
                 if parsed is not None:
                     item["tolerance"] = parsed
 
@@ -177,10 +181,13 @@ def _coerce_min_update_seconds(value: Any, default: float) -> float:
     return parsed
 
 
-def _coerce_optional_float(value: Any) -> float | None:
+def _coerce_optional_float(value: Any, *, min_value: float | None = None) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    if min_value is not None and parsed < min_value:
+        return None
+    return parsed
