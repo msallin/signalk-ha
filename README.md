@@ -51,6 +51,9 @@ If you prefer to install manually:
 | Discovery refresh interval (hours) | How often REST discovery refreshes entity metadata. | 24 |
 | Enable notifications | Subscribe to all `notifications.*` updates and publish them on the HA event bus. | On |
 | Notification paths | Paths to create event entities for (one per line, empty to disable). Use `notifications.*` to expose all. | `notifications.*` |
+| Default subscription period (ms) | Default Signal K subscription keepalive period for discovered sensor paths. | 5000 |
+| Default minimum update interval (seconds) | Default minimum time between Home Assistant state writes for sensors. | 5.0 |
+| Path policy overrides | Optional per-path overrides, one per line: `path, period_ms=..., min_update_seconds=..., tolerance=...`. | Empty |
 
 ## How it works
 
@@ -84,6 +87,51 @@ The churn‑reduction pipeline has multiple layers that work together:
 - Coordinator coalescing: updates are buffered for a short window so many deltas collapse into a single HA state update.
 - Entity throttling: each entity enforces `min_update_ms` plus per‑path tolerances so tiny changes do not trigger writes.
 - Staleness: if updates stop, entities are marked unavailable after `stale_seconds`.
+
+### Path Policy Tuning
+
+You can tune update behavior globally and per path:
+
+- Global defaults: `Default subscription period (ms)` and `Default minimum update interval (seconds)` in integration options.
+- Per-path overrides: `Path policy overrides` in options.
+
+Example options text:
+
+```text
+environment.wind.speedTrue, period_ms=1000, min_update_seconds=1.0, tolerance=0.2
+navigation.speedOverGround, period_ms=2000
+```
+
+Partial overrides inherit the entry defaults. For example, a line with only `tolerance=...` keeps the configured global period and minimum update interval.
+
+### Service: set_path_policy
+
+Use `signalk_ha.set_path_policy` to persist or update one path policy from Developer Tools.
+
+Required fields:
+
+- `entry_id`: Signal K config entry ID.
+- `path`: Canonical Signal K path.
+
+Optional fields:
+
+- `period_ms` (minimum `1000`)
+- `min_update_seconds` (minimum `0.5`)
+- `tolerance` (minimum `0`)
+
+Example service call:
+
+```yaml
+service: signalk_ha.set_path_policy
+data:
+  entry_id: 01J6QYV9S5W30A6C5MK8M6Y1DP
+  path: environment.wind.speedTrue
+  period_ms: 1000
+  min_update_seconds: 1.0
+  tolerance: 0.2
+```
+
+The integration stores the override in options and reloads the entry automatically.
 
 ### Notifications
 

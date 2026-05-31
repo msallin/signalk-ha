@@ -55,7 +55,7 @@ _SET_PATH_POLICY_SCHEMA = vol.Schema(
         vol.Required("path"): cv.string,
         vol.Optional("period_ms"): vol.All(vol.Coerce(int), vol.Range(min=1000)),
         vol.Optional("min_update_seconds"): vol.All(vol.Coerce(float), vol.Range(min=0.5)),
-        vol.Optional("tolerance"): vol.Coerce(float),
+        vol.Optional("tolerance"): vol.All(vol.Coerce(float), vol.Range(min=0)),
     }
 )
 

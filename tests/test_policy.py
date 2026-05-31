@@ -62,6 +62,46 @@ def test_path_policies_from_entry() -> None:
     assert policy.tolerance == 0.1
 
 
+def test_path_policies_from_entry_partial_override_uses_entry_defaults() -> None:
+    entry = SimpleNamespace(
+        options={
+            CONF_DEFAULT_PERIOD_MS: 2500,
+            CONF_DEFAULT_MIN_UPDATE_SECONDS: 2.5,
+            CONF_PATH_POLICIES: {
+                "environment.wind.speedTrue": {
+                    "tolerance": 0.2,
+                }
+            },
+        }
+    )
+
+    policy = path_policies_from_entry(entry)["environment.wind.speedTrue"]
+    assert policy.period_ms == 2500
+    assert policy.min_update_seconds == 2.5
+    assert policy.tolerance == 0.2
+
+
+def test_path_policies_reject_negative_tolerance() -> None:
+    parsed = parse_path_policies_text(
+        "environment.wind.speedTrue, period_ms=1000, min_update_seconds=1.0, tolerance=-0.1"
+    )
+    assert "tolerance" not in parsed["environment.wind.speedTrue"]
+
+    entry = SimpleNamespace(
+        options={
+            CONF_PATH_POLICIES: {
+                "environment.wind.speedTrue": {
+                    "period_ms": 1000,
+                    "min_update_seconds": 1.0,
+                    "tolerance": -0.1,
+                }
+            }
+        }
+    )
+    policy = path_policies_from_entry(entry)["environment.wind.speedTrue"]
+    assert policy.tolerance is None
+
+
 def test_merge_path_policy_updates_existing() -> None:
     merged = merge_path_policy(
         {"environment.wind.speedTrue": {"period_ms": 5000}},
@@ -70,3 +110,16 @@ def test_merge_path_policy_updates_existing() -> None:
     )
     assert merged["environment.wind.speedTrue"]["period_ms"] == 5000
     assert merged["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
+
+
+def test_merge_path_policy_rejects_negative_tolerance() -> None:
+    try:
+        merge_path_policy(
+            {"environment.wind.speedTrue": {"period_ms": 5000}},
+            path="environment.wind.speedTrue",
+            tolerance=-0.1,
+        )
+    except ValueError:
+        pass
+    else:  # pragma: no cover - defensive
+        assert False, "Expected ValueError for negative tolerance"
