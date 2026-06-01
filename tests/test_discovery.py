@@ -313,7 +313,7 @@ def test_discovery_meta_display_name_and_units() -> None:
     result = discover_entities(data, scopes=("environment",))
     entity = next(spec for spec in result.entities if spec.path.endswith("temperature"))
     assert entity.name == "Outside Temp"
-    assert entity.unit == "degC"
+    assert entity.unit == "°C"
     assert entity.conversion is not None
     assert entity.spec_known is True
 
@@ -330,7 +330,7 @@ def test_discovery_schema_units_used_when_meta_missing() -> None:
     }
     result = discover_entities(data, scopes=("environment",))
     entity = next(spec for spec in result.entities if spec.path.endswith("temperature"))
-    assert entity.unit == "degC"
+    assert entity.unit == "°C"
     assert entity.conversion is not None
     assert entity.spec_known is True
 

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Iterable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import PERCENTAGE, UnitOfPressure, UnitOfTemperature
 
 from .const import DEFAULT_PERIOD_MS, DEFAULT_POSITION_TOLERANCE_M, SK_PATH_POSITION
 from .mapping import Conversion, angle_unit_for_path, apply_conversion, lookup_mapping
@@ -377,11 +378,11 @@ def _prefix_parts_for_path(path: str) -> list[str]:
 
 def _unit_from_meta(path: str, meta_units: Any, conversion: Conversion | None) -> str | None:
     if conversion == Conversion.K_TO_C:
-        return "degC"
+        return UnitOfTemperature.CELSIUS
     if conversion == Conversion.PA_TO_HPA:
-        return "hPa"
+        return UnitOfPressure.HPA
     if conversion == Conversion.RATIO_TO_PERCENT:
-        return "%"
+        return PERCENTAGE
     if conversion == Conversion.RAD_TO_DEG:
         schema_info = lookup_schema(path)
         schema_description = schema_info.description if schema_info else None
