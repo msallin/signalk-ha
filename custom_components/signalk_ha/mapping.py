@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Iterable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
 
 DEVICE_CLASS_ANGLE = getattr(SensorDeviceClass, "ANGLE", None)
 DEVICE_CLASS_DEPTH = getattr(SensorDeviceClass, "DEPTH", None)
@@ -18,6 +19,7 @@ class Conversion(str, Enum):
     K_TO_C = "k_to_c"
     PA_TO_HPA = "pa_to_hpa"
     RATIO_TO_PERCENT = "ratio_to_percent"
+    M_TO_NM = "m_to_nm"
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,7 @@ def angle_unit_for_path(path: str, description: str | None = None) -> str:
 _EXACT_MAPPING: dict[str, PathMapping] = {
     "navigation.speedOverGround": PathMapping(
         display_name="SOG",
-        unit="kn",
+        unit=UnitOfSpeed.KNOTS,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.MS_TO_KNOTS,
@@ -82,7 +84,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "navigation.speedThroughWater": PathMapping(
         display_name="STW",
-        unit="kn",
+        unit=UnitOfSpeed.KNOTS,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.MS_TO_KNOTS,
@@ -131,7 +133,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.depth.belowTransducer": PathMapping(
         display_name="DBT",
-        unit="m",
+        unit=UnitOfLength.METERS,
         device_class=DEVICE_CLASS_DEPTH,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=None,
@@ -140,7 +142,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.depth.belowSurface": PathMapping(
         display_name="DBS",
-        unit="m",
+        unit=UnitOfLength.METERS,
         device_class=DEVICE_CLASS_DEPTH,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=None,
@@ -149,7 +151,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.depth.belowKeel": PathMapping(
         display_name="DBK",
-        unit="m",
+        unit=UnitOfLength.METERS,
         device_class=DEVICE_CLASS_DEPTH,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=None,
@@ -158,7 +160,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.wind.speedApparent": PathMapping(
         display_name="AWS",
-        unit="kn",
+        unit=UnitOfSpeed.KNOTS,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.MS_TO_KNOTS,
@@ -167,7 +169,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.wind.speedTrue": PathMapping(
         display_name="TWS",
-        unit="kn",
+        unit=UnitOfSpeed.KNOTS,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.MS_TO_KNOTS,
@@ -176,7 +178,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "environment.wind.speedOverGround": PathMapping(
         display_name="GWS",
-        unit="kn",
+        unit=UnitOfSpeed.KNOTS,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.MS_TO_KNOTS,
@@ -230,12 +232,32 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "tanks.freshWater.0.currentLevel": PathMapping(
         display_name=None,
-        unit="%",
+        unit=PERCENTAGE,
         device_class=None,
         state_class=SensorStateClass.MEASUREMENT,
         conversion=Conversion.RATIO_TO_PERCENT,
         expected_units=("ratio",),
         tolerance=0.5,
+    ),
+    # Navigation log distances: Signal K uses metres; expose as nautical miles for
+    # practical readability on a chart plotter or sailing dashboard.
+    "navigation.log": PathMapping(
+        display_name="Log",
+        unit=UnitOfLength.NAUTICAL_MILES,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        conversion=Conversion.M_TO_NM,
+        expected_units=("m",),
+        tolerance=0.01,
+    ),
+    "navigation.trip.log": PathMapping(
+        display_name="Trip Log",
+        unit=UnitOfLength.NAUTICAL_MILES,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        conversion=Conversion.M_TO_NM,
+        expected_units=("m",),
+        tolerance=0.01,
     ),
 }
 
@@ -259,4 +281,6 @@ def apply_conversion(value: float, conversion: Conversion | None) -> float:
         return value / 100.0
     if conversion == Conversion.RATIO_TO_PERCENT:
         return value * 100.0
+    if conversion == Conversion.M_TO_NM:
+        return value * 0.0005399568034557236
     return value
