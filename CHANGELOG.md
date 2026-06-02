@@ -7,6 +7,7 @@
 - Add configurable default subscription period and minimum update interval in integration options.
 - Add per-path policy overrides in options for `period_ms`, `min_update_seconds`, and `tolerance`.
 - Add `signalk_ha.set_path_policy` service with full schema and Developer Tools guidance.
+- Add `signalk_ha.clear_path_policy` service to remove a per-path override.
 
 ## 2.0.0
 

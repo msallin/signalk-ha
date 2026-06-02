@@ -59,3 +59,25 @@ set_path_policy:
           max: 100000
           step: 0.01
           mode: box
+
+clear_path_policy:
+  name: Clear path policy
+  description: >
+    Remove a per-path policy override for a Signal K config entry. The path
+    falls back to the configured global defaults. The change is persisted to
+    integration options and the entry is reloaded automatically.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The Signal K config entry ID to update.
+      required: true
+      example: "01J6QYV9S5W30A6C5MK8M6Y1DP"
+      selector:
+        text:
+    path:
+      name: Signal K path
+      description: Canonical Signal K path whose override should be removed.
+      required: true
+      example: "environment.wind.speedTrue"
+      selector:
+        text:

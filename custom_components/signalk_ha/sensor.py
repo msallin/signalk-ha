@@ -17,7 +17,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     DEFAULT_MAX_IDLE_WRITE_SECONDS,
-    DEFAULT_MIN_UPDATE_MS,
+    DEFAULT_MIN_UPDATE_SECONDS,
     DEFAULT_STALE_SECONDS,
     HEALTH_SENSOR_CONNECTION_STATE,
     HEALTH_SENSOR_LAST_ERROR,
@@ -33,7 +33,7 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
-from .policy import default_policy_from_entry, path_policies_from_entry
+from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
 
 PARALLEL_UPDATES = 1
 
@@ -158,12 +158,12 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
         if not path:
             continue
         name = registry_entry.original_name or registry_entry.name or path.split(".")[-1]
-        override = path_policies.get(path)
-        period_ms = override.period_ms if override is not None else default_period_ms
-        min_update_seconds = (
-            override.min_update_seconds if override is not None else default_min_update_seconds
+        effective = resolve_effective_policy(
+            path,
+            default_period_ms=default_period_ms,
+            default_min_update_seconds=default_min_update_seconds,
+            path_policies=path_policies,
         )
-        tolerance = override.tolerance if override is not None else None
         specs.append(
             DiscoveredEntity(
                 path=path,
@@ -173,9 +173,9 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
                 device_class=None,
                 state_class=None,
                 conversion=None,
-                tolerance=tolerance,
-                min_update_seconds=min_update_seconds,
-                period_ms=period_ms,
+                tolerance=effective.tolerance,
+                min_update_seconds=effective.min_update_seconds,
+                period_ms=effective.period_ms,
             )
         )
     return specs
@@ -250,7 +250,7 @@ class SignalKBaseSensor(CoordinatorEntity, SensorEntity):
         return None
 
     def _min_update_seconds(self) -> float:
-        return DEFAULT_MIN_UPDATE_MS / 1000.0
+        return DEFAULT_MIN_UPDATE_SECONDS
 
     def _should_refresh_on_idle(self) -> bool:
         return True
@@ -328,7 +328,7 @@ class SignalKSensor(SignalKBaseSensor):
 
     def _min_update_seconds(self) -> float:
         if self._spec.min_update_seconds is None:
-            return DEFAULT_MIN_UPDATE_MS / 1000.0
+            return DEFAULT_MIN_UPDATE_SECONDS
         return self._spec.min_update_seconds
 
     def _should_refresh_on_idle(self) -> bool:

@@ -10,7 +10,7 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 
 from .const import DEFAULT_PERIOD_MS, DEFAULT_POSITION_TOLERANCE_M, SK_PATH_POSITION
 from .mapping import Conversion, angle_unit_for_path, apply_conversion, lookup_mapping
-from .policy import default_policy_from_entry, path_policies_from_entry
+from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
 from .schema import SCHEMA_GROUPS, lookup_schema
 
 _RESERVED_KEYS = {
@@ -135,29 +135,21 @@ def apply_entry_policies(result: DiscoveryResult, entry: Any) -> DiscoveryResult
             entities.append(entity)
             continue
 
-        period_ms = default_period_ms
-        if entity.min_update_seconds is not None:
-            period_ms = entity.period_ms
-        min_update_seconds = (
-            entity.min_update_seconds
-            if entity.min_update_seconds is not None
-            else default_min_update_seconds
+        effective = resolve_effective_policy(
+            entity.path,
+            default_period_ms=default_period_ms,
+            default_min_update_seconds=default_min_update_seconds,
+            path_policies=path_policies,
+            base_min_update_seconds=entity.min_update_seconds,
+            base_tolerance=entity.tolerance,
         )
-        tolerance = entity.tolerance
-
-        override = path_policies.get(entity.path)
-        if override is not None:
-            period_ms = override.period_ms
-            min_update_seconds = override.min_update_seconds
-            if override.tolerance is not None:
-                tolerance = override.tolerance
 
         entities.append(
             replace(
                 entity,
-                period_ms=period_ms,
-                min_update_seconds=min_update_seconds,
-                tolerance=tolerance,
+                period_ms=effective.period_ms,
+                min_update_seconds=effective.min_update_seconds,
+                tolerance=effective.tolerance,
             )
         )
 

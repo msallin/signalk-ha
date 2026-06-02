@@ -139,6 +139,15 @@ data:
   tolerance: 0.2
 ```
 
+To remove an override and fall back to the global defaults, use `signalk_ha.clear_path_policy`:
+
+```yaml
+action: signalk_ha.clear_path_policy
+data:
+  entry_id: 01J6QYV9S5W30A6C5MK8M6Y1DP
+  path: environment.wind.speedTrue
+```
+
 ### Notifications
 
 When notifications are enabled, Signal K notifications (`notifications.*`) are forwarded as Home Assistant events. The event type is `signalk_<vesselname>_notification`. Notifications are also exposed as Event entities (domain `event`) so you can build automations in the UI. The Notification Paths option controls which Event entities are created.

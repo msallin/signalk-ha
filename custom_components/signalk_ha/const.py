@@ -36,6 +36,7 @@ DEFAULT_GROUPS = ("navigation", "environment", "tanks")
 DEFAULT_ENTITY_ID_PREFIX = ""
 
 SERVICE_SET_PATH_POLICY = "set_path_policy"
+SERVICE_CLEAR_PATH_POLICY = "clear_path_policy"
 
 DEFAULT_PERIOD_MS = 5000
 DEFAULT_FORMAT = "delta"
@@ -44,7 +45,9 @@ DEFAULT_POLICY = "ideal"
 # Minimum write cadence guard in Home Assistant (milliseconds); we cannot rely on
 # Signal K subscription periods alone to protect the recorder/UI from bursts.
 DEFAULT_MIN_UPDATE_MS = 5000
-DEFAULT_MIN_UPDATE_SECONDS = 5.0
+# Same guard expressed in seconds for the policy/throttle code. Derived from the
+# millisecond value so the two representations cannot drift apart.
+DEFAULT_MIN_UPDATE_SECONDS = DEFAULT_MIN_UPDATE_MS / 1000.0
 # Force a periodic write even when values stay within tolerance to keep HA fresh.
 DEFAULT_MAX_IDLE_WRITE_SECONDS = 300.0
 DEFAULT_STALE_SECONDS = 600.0
