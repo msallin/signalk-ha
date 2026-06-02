@@ -8,9 +8,11 @@ import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
+from homeassistant.helpers.typing import ConfigType
 
 from .auth import SignalKAuthManager
 from .const import (
@@ -36,13 +38,19 @@ from .const import (
     DEFAULT_SSL,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
+    SERVICE_CLEAR_PATH_POLICY,
     SERVICE_SET_PATH_POLICY,
     SK_PATH_NOTIFICATIONS,
 )
 from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .entity_utils import path_from_unique_id
 from .identity import build_instance_id
-from .policy import default_policy_from_entry, merge_path_policy, path_policies_from_entry
+from .policy import (
+    default_policy_from_entry,
+    merge_path_policy,
+    path_policies_from_entry,
+    remove_path_policy,
+)
 from .rest import normalize_base_url, normalize_ws_url
 from .runtime import SignalKRuntimeData
 
@@ -58,6 +66,20 @@ _SET_PATH_POLICY_SCHEMA = vol.Schema(
         vol.Optional("tolerance"): vol.All(vol.Coerce(float), vol.Range(min=0)),
     }
 )
+
+_CLEAR_PATH_POLICY_SCHEMA = vol.Schema(
+    {
+        vol.Required("entry_id"): cv.string,
+        vol.Required("path"): cv.string,
+    }
+)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    # Services resolve their target entry dynamically, so register them once at the
+    # integration level instead of per config entry.
+    _async_register_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -104,7 +126,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.async_create_task(_async_update_subscriptions(hass, entry))
 
     entry.async_on_unload(hass.bus.async_listen(EVENT_ENTITY_REGISTRY_UPDATED, _registry_updated))
-    _async_register_services(hass)
     return True
 
 
@@ -157,30 +178,31 @@ def _async_register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_SET_PATH_POLICY):
         return
 
-    async def _async_set_path_policy(call: ServiceCall) -> None:
-        entry_id = call.data["entry_id"]
-        path = call.data["path"]
-        period_ms = call.data.get("period_ms")
-        min_update_seconds = call.data.get("min_update_seconds")
-        tolerance = call.data.get("tolerance")
-
+    def _resolve_entry(entry_id: str) -> ConfigEntry:
         entry = hass.config_entries.async_get_entry(entry_id)
         if not entry or entry.domain != DOMAIN:
-            raise vol.Invalid(f"Unknown Signal K entry_id: {entry_id}")
+            raise ServiceValidationError(f"Unknown Signal K entry_id: {entry_id}")
+        return entry
 
+    async def _async_set_path_policy(call: ServiceCall) -> None:
+        entry = _resolve_entry(call.data["entry_id"])
         current = entry.options.get(CONF_PATH_POLICIES)
         existing = current if isinstance(current, dict) else None
         merged = merge_path_policy(
             existing,
-            path=path,
-            period_ms=period_ms,
-            min_update_seconds=min_update_seconds,
-            tolerance=tolerance,
+            path=call.data["path"],
+            period_ms=call.data.get("period_ms"),
+            min_update_seconds=call.data.get("min_update_seconds"),
+            tolerance=call.data.get("tolerance"),
         )
+        _async_apply_path_policies(hass, entry, merged)
 
-        new_options = {**entry.options, CONF_PATH_POLICIES: merged}
-        hass.config_entries.async_update_entry(entry, options=new_options)
-        await hass.config_entries.async_reload(entry.entry_id)
+    async def _async_clear_path_policy(call: ServiceCall) -> None:
+        entry = _resolve_entry(call.data["entry_id"])
+        current = entry.options.get(CONF_PATH_POLICIES)
+        existing = current if isinstance(current, dict) else None
+        merged = remove_path_policy(existing, path=call.data["path"])
+        _async_apply_path_policies(hass, entry, merged)
 
     hass.services.async_register(
         DOMAIN,
@@ -188,6 +210,24 @@ def _async_register_services(hass: HomeAssistant) -> None:
         _async_set_path_policy,
         schema=_SET_PATH_POLICY_SCHEMA,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_PATH_POLICY,
+        _async_clear_path_policy,
+        schema=_CLEAR_PATH_POLICY_SCHEMA,
+    )
+
+
+@callback
+def _async_apply_path_policies(hass: HomeAssistant, entry: ConfigEntry, policies: dict) -> None:
+    # Persist the change and let the entry's update listener perform the reload.
+    # Reloading here too would reload the entry twice for a single options change.
+    current = entry.options.get(CONF_PATH_POLICIES)
+    current_dict = current if isinstance(current, dict) else {}
+    if policies == current_dict:
+        return
+    new_options = {**entry.options, CONF_PATH_POLICIES: policies}
+    hass.config_entries.async_update_entry(entry, options=new_options)
 
 
 async def _async_update_subscriptions(hass: HomeAssistant, entry: ConfigEntry) -> None:

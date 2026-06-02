@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import EVENT_ENTITY_REGISTRY_UPDATED
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -10,6 +12,7 @@ from custom_components.signalk_ha import (
     _async_register_services,
     _async_update_subscriptions,
     async_migrate_entry,
+    async_setup,
     async_setup_entry,
     async_unload_entry,
 )
@@ -356,9 +359,17 @@ async def test_update_subscriptions_applies_path_policy_override(hass) -> None:
     assert periods["navigation.speedOverGround"] == 1000
 
 
+async def test_async_setup_registers_services(hass) -> None:
+    assert await async_setup(hass, {}) is True
+    assert hass.services.has_service(DOMAIN, "set_path_policy")
+    assert hass.services.has_service(DOMAIN, "clear_path_policy")
+
+
 async def test_set_path_policy_service_updates_options_and_reloads(hass) -> None:
     entry = _make_entry()
     entry.add_to_hass(hass)
+    # Mirror async_setup_entry: an options change reloads the entry via the update listener.
+    entry.add_update_listener(_async_entry_updated)
 
     _async_register_services(hass)
 
@@ -375,13 +386,75 @@ async def test_set_path_policy_service_updates_options_and_reloads(hass) -> None
             },
             blocking=True,
         )
+        await hass.async_block_till_done()
 
-    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["period_ms"] == 1000
-    assert (
-        entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
-    )
-    assert entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]["tolerance"] == 0.2
+    policy = entry.options[CONF_PATH_POLICIES]["environment.wind.speedTrue"]
+    assert policy["period_ms"] == 1000
+    assert policy["min_update_seconds"] == 1.0
+    assert policy["tolerance"] == 0.2
+    # Exactly one reload: the service relies on the update listener and must not reload itself.
     reload_entry.assert_awaited_once_with(entry.entry_id)
+
+
+async def test_set_path_policy_service_unknown_entry_raises(hass) -> None:
+    _async_register_services(hass)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "set_path_policy",
+            {"entry_id": "does-not-exist", "path": "environment.wind.speedTrue", "period_ms": 1000},
+            blocking=True,
+        )
+
+
+async def test_clear_path_policy_service_removes_override(hass) -> None:
+    entry = _make_entry(
+        options={
+            CONF_PATH_POLICIES: {
+                "environment.wind.speedTrue": {"period_ms": 1000},
+                "navigation.speedOverGround": {"period_ms": 2000},
+            }
+        }
+    )
+    entry.add_to_hass(hass)
+    entry.add_update_listener(_async_entry_updated)
+
+    _async_register_services(hass)
+
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock()) as reload_entry:
+        await hass.services.async_call(
+            DOMAIN,
+            "clear_path_policy",
+            {"entry_id": entry.entry_id, "path": "environment.wind.speedTrue"},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    policies = entry.options[CONF_PATH_POLICIES]
+    assert "environment.wind.speedTrue" not in policies
+    assert "navigation.speedOverGround" in policies
+    reload_entry.assert_awaited_once_with(entry.entry_id)
+
+
+async def test_clear_path_policy_service_noop_when_absent(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    entry.add_update_listener(_async_entry_updated)
+
+    _async_register_services(hass)
+
+    with patch.object(hass.config_entries, "async_reload", new=AsyncMock()) as reload_entry:
+        await hass.services.async_call(
+            DOMAIN,
+            "clear_path_policy",
+            {"entry_id": entry.entry_id, "path": "environment.wind.speedTrue"},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+
+    # Nothing to remove, so options are unchanged and no reload is triggered.
+    reload_entry.assert_not_called()
 
 
 async def test_update_subscriptions_skips_invalid_and_notification_dup(hass) -> None:

@@ -6,11 +6,14 @@ from custom_components.signalk_ha.const import (
     CONF_PATH_POLICIES,
 )
 from custom_components.signalk_ha.policy import (
+    PathPolicy,
     default_policy_from_entry,
     merge_path_policy,
     parse_path_policies_text,
     path_policies_from_entry,
     path_policies_to_text,
+    remove_path_policy,
+    resolve_effective_policy,
 )
 
 
@@ -123,3 +126,65 @@ def test_merge_path_policy_rejects_negative_tolerance() -> None:
         pass
     else:  # pragma: no cover - defensive
         assert False, "Expected ValueError for negative tolerance"
+
+
+def test_remove_path_policy() -> None:
+    existing = {
+        "environment.wind.speedTrue": {"period_ms": 1000},
+        "navigation.speedOverGround": {"period_ms": 2000},
+    }
+    merged = remove_path_policy(existing, path="environment.wind.speedTrue")
+    assert "environment.wind.speedTrue" not in merged
+    assert "navigation.speedOverGround" in merged
+    # Original is left untouched.
+    assert "environment.wind.speedTrue" in existing
+    # Removing an absent path is a no-op rather than an error.
+    assert remove_path_policy(None, path="does.not.exist") == {}
+
+
+def test_resolve_effective_policy_precedence() -> None:
+    policies = {
+        "a.b": PathPolicy(path="a.b", period_ms=1000, min_update_seconds=1.0, tolerance=0.2),
+        "c.d": PathPolicy(path="c.d", period_ms=1500, min_update_seconds=1.5, tolerance=None),
+    }
+
+    # Per-path override wins over the discovery base and the global defaults.
+    eff = resolve_effective_policy(
+        "a.b",
+        default_period_ms=5000,
+        default_min_update_seconds=5.0,
+        path_policies=policies,
+        base_min_update_seconds=3.0,
+        base_tolerance=0.9,
+    )
+    assert (eff.period_ms, eff.min_update_seconds, eff.tolerance) == (1000, 1.0, 0.2)
+
+    # Override without a tolerance keeps the discovery-provided (base) tolerance.
+    eff = resolve_effective_policy(
+        "c.d",
+        default_period_ms=5000,
+        default_min_update_seconds=5.0,
+        path_policies=policies,
+        base_tolerance=0.4,
+    )
+    assert (eff.period_ms, eff.min_update_seconds, eff.tolerance) == (1500, 1.5, 0.4)
+
+    # No override: the base value is used where present, the global default otherwise.
+    eff = resolve_effective_policy(
+        "x.y",
+        default_period_ms=5000,
+        default_min_update_seconds=5.0,
+        path_policies=policies,
+        base_min_update_seconds=3.0,
+        base_tolerance=0.9,
+    )
+    assert (eff.period_ms, eff.min_update_seconds, eff.tolerance) == (5000, 3.0, 0.9)
+
+    # No override and no base: pure global defaults with no tolerance.
+    eff = resolve_effective_policy(
+        "x.y",
+        default_period_ms=5000,
+        default_min_update_seconds=5.0,
+        path_policies={},
+    )
+    assert (eff.period_ms, eff.min_update_seconds, eff.tolerance) == (5000, 5.0, None)

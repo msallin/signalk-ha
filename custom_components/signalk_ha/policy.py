@@ -22,6 +22,58 @@ class PathPolicy:
     tolerance: float | None = None
 
 
+@dataclass(frozen=True)
+class EffectivePolicy:
+    """Resolved subscription/update policy for a single path."""
+
+    period_ms: int
+    min_update_seconds: float
+    tolerance: float | None
+
+
+def resolve_effective_policy(
+    path: str,
+    *,
+    default_period_ms: int,
+    default_min_update_seconds: float,
+    path_policies: Mapping[str, PathPolicy],
+    base_min_update_seconds: float | None = None,
+    base_tolerance: float | None = None,
+) -> EffectivePolicy:
+    """Resolve the effective policy for ``path``.
+
+    Precedence is: an explicit per-path override wins; otherwise a value
+    supplied by discovery (the ``base_*`` arguments) is used; otherwise the
+    configured global default applies. Pass ``base_*`` as ``None`` when no
+    discovery value exists for the path (for example registry-only specs).
+
+    Discovery does not currently assign per-path subscription periods, so the
+    global default is authoritative for ``period_ms`` unless a per-path override
+    is set. If discovery ever needs to carry a period, add a ``base_period_ms``
+    argument here rather than inferring it from another field.
+    """
+    period_ms = default_period_ms
+    min_update_seconds = (
+        base_min_update_seconds
+        if base_min_update_seconds is not None
+        else default_min_update_seconds
+    )
+    tolerance = base_tolerance
+
+    override = path_policies.get(path)
+    if override is not None:
+        period_ms = override.period_ms
+        min_update_seconds = override.min_update_seconds
+        if override.tolerance is not None:
+            tolerance = override.tolerance
+
+    return EffectivePolicy(
+        period_ms=period_ms,
+        min_update_seconds=min_update_seconds,
+        tolerance=tolerance,
+    )
+
+
 def default_policy_from_entry(entry: Any) -> tuple[int, float]:
     options = _entry_options(entry)
     period = _coerce_period_ms(options.get(CONF_DEFAULT_PERIOD_MS), DEFAULT_PERIOD_MS)
@@ -88,6 +140,19 @@ def merge_path_policy(
         current["tolerance"] = parsed_tolerance
 
     merged[normalized_path] = current
+    return merged
+
+
+def remove_path_policy(
+    existing: dict[str, dict[str, Any]] | None, *, path: str
+) -> dict[str, dict[str, Any]]:
+    """Return a copy of ``existing`` with ``path`` removed (no-op if absent)."""
+    normalized_path = _normalize_path(path)
+    if not normalized_path:
+        raise ValueError("Invalid path")
+
+    merged: dict[str, dict[str, Any]] = dict(existing or {})
+    merged.pop(normalized_path, None)
     return merged
 
 
@@ -161,6 +226,9 @@ def _normalize_path(path: Any) -> str:
     return path.strip()
 
 
+# Free-form text input (the options textarea) is clamped to the valid range rather
+# than rejected, so a single typo doesn't fail the whole save. Structured inputs
+# (the options number fields and the services) are range-validated by their schema.
 def _coerce_period_ms(value: Any, default: int) -> int:
     try:
         parsed = int(value)
