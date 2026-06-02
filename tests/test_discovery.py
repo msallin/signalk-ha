@@ -405,3 +405,22 @@ def test_discovery_icon_defaults() -> None:
     assert icons["electrical.batteries.0.voltage"] == "mdi:battery"
     assert icons["tanks.fuel.0.currentLevel"] == "mdi:fuel"
     assert icons["environment.outside.temperature"] == "mdi:thermometer"
+
+
+def test_discovery_navigation_log_converted_to_nautical_miles() -> None:
+    data = {
+        "navigation": {
+            "log": {"value": 185200.0, "meta": {"units": "m"}},
+            "trip": {"log": {"value": 9260.0, "meta": {"units": "m"}}},
+        }
+    }
+    result = discover_entities(data, scopes=("navigation",))
+    entities = {e.path: e for e in result.entities}
+
+    log = entities["navigation.log"]
+    assert log.conversion == Conversion.M_TO_NM
+    assert log.unit == "nmi"
+
+    trip_log = entities["navigation.trip.log"]
+    assert trip_log.conversion == Conversion.M_TO_NM
+    assert trip_log.unit == "nmi"

@@ -1,3 +1,5 @@
+import pytest
+
 from custom_components.signalk_ha.mapping import (
     Conversion,
     angle_unit_for_path,
@@ -13,6 +15,7 @@ def test_apply_conversion_variants() -> None:
     assert apply_conversion(300.0, Conversion.K_TO_C) == 26.850000000000023
     assert apply_conversion(100.0, Conversion.PA_TO_HPA) == 1.0
     assert apply_conversion(0.5, Conversion.RATIO_TO_PERCENT) == 50.0
+    assert apply_conversion(1852.0, Conversion.M_TO_NM) == pytest.approx(1.0, rel=1e-4)
     assert apply_conversion(10.0, None) == 10.0
 
 
@@ -39,3 +42,21 @@ def test_angle_units_and_display_names() -> None:
     assert gwd.display_name == "GWD"
     assert gwd.unit == "° T"
     assert gwd.state_class is None
+
+
+def test_navigation_log_mapping() -> None:
+    from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+
+    log = lookup_mapping("navigation.log")
+    assert log is not None
+    assert log.display_name == "Log"
+    assert log.conversion == Conversion.M_TO_NM
+    assert log.state_class == SensorStateClass.TOTAL_INCREASING
+    assert log.device_class == SensorDeviceClass.DISTANCE
+    assert "m" in log.expected_units
+
+    trip = lookup_mapping("navigation.trip.log")
+    assert trip is not None
+    assert trip.display_name == "Trip Log"
+    assert trip.conversion == Conversion.M_TO_NM
+    assert trip.state_class == SensorStateClass.TOTAL_INCREASING
