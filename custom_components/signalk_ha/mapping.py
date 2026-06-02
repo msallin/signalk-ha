@@ -9,6 +9,10 @@ from typing import Iterable
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
 
+# UnitOfLength.NAUTICAL_MILES was added in a later HA release; use the literal
+# string so the integration works across a wider range of HA versions.
+_NMI = "nmi"
+
 DEVICE_CLASS_ANGLE = getattr(SensorDeviceClass, "ANGLE", None)
 DEVICE_CLASS_DEPTH = getattr(SensorDeviceClass, "DEPTH", None)
 
@@ -243,7 +247,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     # practical readability on a chart plotter or sailing dashboard.
     "navigation.log": PathMapping(
         display_name="Log",
-        unit=UnitOfLength.NAUTICAL_MILES,
+        unit=_NMI,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         conversion=Conversion.M_TO_NM,
@@ -252,7 +256,7 @@ _EXACT_MAPPING: dict[str, PathMapping] = {
     ),
     "navigation.trip.log": PathMapping(
         display_name="Trip Log",
-        unit=UnitOfLength.NAUTICAL_MILES,
+        unit=_NMI,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         conversion=Conversion.M_TO_NM,
