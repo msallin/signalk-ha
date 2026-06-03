@@ -122,10 +122,12 @@ def merge_path_policy(
     if not normalized_path:
         raise ValueError("Invalid path")
 
+    # Copy the existing per-path entry instead of aliasing it: callers pass in
+    # the stored options dict, and mutating it in place would let the updated
+    # options compare equal to the originals (no persist, no reload).
     merged: dict[str, dict[str, Any]] = dict(existing or {})
-    current = merged.get(normalized_path, {})
-    if not isinstance(current, dict):
-        current = {}
+    existing_policy = merged.get(normalized_path)
+    current = dict(existing_policy) if isinstance(existing_policy, dict) else {}
 
     if period_ms is not None:
         current["period_ms"] = _coerce_period_ms(period_ms, DEFAULT_PERIOD_MS)

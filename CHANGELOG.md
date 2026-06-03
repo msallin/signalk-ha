@@ -1,10 +1,11 @@
 # Changelog
 
-## 2.1.1
+## 2.2.0
 
 ### Bug Fixes
 
 - Use canonical Home Assistant unit constants so converted sensors report standard units (temperature now shows `°C` instead of `degC`).
+- Save per-path policy changes made with `set_path_policy` when the path already has an override; the update could previously be silently dropped.
 
 ### Features
 
