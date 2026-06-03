@@ -115,6 +115,27 @@ def test_merge_path_policy_updates_existing() -> None:
     assert merged["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
 
 
+def test_merge_path_policy_does_not_mutate_existing() -> None:
+    # The set_path_policy service passes entry.options straight in. Mutating the
+    # stored dict in place makes the updated options compare equal to the old
+    # ones, so async_update_entry detects no change and never persists or
+    # reloads. Updating an existing path must therefore leave the input intact.
+    existing = {"environment.wind.speedTrue": {"period_ms": 5000}}
+    original_inner = existing["environment.wind.speedTrue"]
+
+    merged = merge_path_policy(
+        existing,
+        path="environment.wind.speedTrue",
+        min_update_seconds=1.0,
+    )
+
+    assert existing == {"environment.wind.speedTrue": {"period_ms": 5000}}
+    assert "min_update_seconds" not in original_inner
+    assert merged is not existing
+    assert merged["environment.wind.speedTrue"] is not original_inner
+    assert merged["environment.wind.speedTrue"]["min_update_seconds"] == 1.0
+
+
 def test_merge_path_policy_rejects_negative_tolerance() -> None:
     try:
         merge_path_policy(
