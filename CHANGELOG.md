@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.1
+
+### Bug Fixes
+
+- Use canonical Home Assistant unit constants so converted sensors report standard units (temperature now shows `°C` instead of `degC`).
+
+### Features
+
+- Expose `navigation.log` and `navigation.trip.log` as cumulative distance sensors converted to nautical miles (`nmi`).
+
 ## 2.1.0
 
 ### Features
