@@ -109,6 +109,10 @@ async def test_setup_entry_continues_on_discovery_error(hass) -> None:
             new=AsyncMock(side_effect=RuntimeError("boom")),
         ),
         patch(
+            "custom_components.signalk_ha.__init__.SignalKDiscoveryCoordinator.async_refresh",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
             "custom_components.signalk_ha.async_get_clientsession",
             return_value=AsyncMock(),
         ),
