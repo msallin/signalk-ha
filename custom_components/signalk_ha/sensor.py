@@ -33,6 +33,7 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
+from .mapping import lookup_mapping
 from .policy import default_policy_from_entry, path_policies_from_entry
 
 PARALLEL_UPDATES = 1
@@ -164,15 +165,17 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
             override.min_update_seconds if override is not None else default_min_update_seconds
         )
         tolerance = override.tolerance if override is not None else None
+        mapping = lookup_mapping(path)
         specs.append(
             DiscoveredEntity(
                 path=path,
                 name=name,
                 kind="sensor",
-                unit=None,
-                device_class=None,
-                state_class=None,
-                conversion=None,
+                unit=mapping.unit if mapping else None,
+                device_class=mapping.device_class if mapping else None,
+                state_class=mapping.state_class if mapping else None,
+                conversion=mapping.conversion if mapping else None,
+                spec_known=mapping is not None,
                 tolerance=tolerance,
                 min_update_seconds=min_update_seconds,
                 period_ms=period_ms,
