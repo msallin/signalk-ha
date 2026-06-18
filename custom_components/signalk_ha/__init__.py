@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import homeassistant.helpers.config_validation as cv
@@ -57,6 +58,35 @@ from .runtime import SignalKRuntimeData
 PLATFORMS: list[str] = ["sensor", "geo_location", "event"]
 _LOGGER = logging.getLogger(__name__)
 
+_DISCOVERY_RETRY_DELAYS = [5, 10, 15]
+
+
+async def _async_refresh_with_retry(discovery: SignalKDiscoveryCoordinator) -> None:
+    try:
+        await discovery.async_config_entry_first_refresh()
+        return
+    except Exception as err:
+        _LOGGER.warning("Signal K discovery failed on first attempt: %s", err)
+
+    for attempt, delay in enumerate(_DISCOVERY_RETRY_DELAYS, start=1):
+        await asyncio.sleep(delay)
+        try:
+            await discovery.async_refresh()
+            if discovery.last_update_success:
+                _LOGGER.info("Signal K discovery succeeded on retry %d", attempt)
+                return
+        except Exception as err:
+            _LOGGER.warning(
+                "Signal K discovery failed on retry %d: %s", attempt, err
+            )
+
+    _LOGGER.warning(
+        "Signal K discovery unavailable after %d retries; "
+        "entities will use registry fallback",
+        len(_DISCOVERY_RETRY_DELAYS),
+    )
+
+
 _SET_PATH_POLICY_SCHEMA = vol.Schema(
     {
         vol.Required("entry_id"): cv.string,
@@ -97,12 +127,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Run an initial discovery synchronously to seed entities and subscription periods.
-    # Fail-open here so a flaky REST endpoint doesn't prevent WS updates and HA startup.
-    try:
-        await discovery.async_config_entry_first_refresh()
-    except Exception as err:  # pragma: no cover - defensive
-        # Don't block HA startup on REST failures; later refreshes can populate entities.
-        _LOGGER.warning("Signal K discovery failed during startup: %s", err)
+    # Retry transient failures so a slow SK server doesn't force the registry fallback.
+    await _async_refresh_with_retry(discovery)
 
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
 
