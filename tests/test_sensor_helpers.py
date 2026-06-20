@@ -3,6 +3,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from homeassistant.components.sensor import ATTR_STATE_CLASS, SensorDeviceClass, SensorStateClass
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -27,6 +28,7 @@ from custom_components.signalk_ha.coordinator import ConnectionState, SignalKCoo
 from custom_components.signalk_ha.device_info import build_device_info
 from custom_components.signalk_ha.discovery import DiscoveredEntity, DiscoveryResult
 from custom_components.signalk_ha.entity_utils import path_from_unique_id
+from custom_components.signalk_ha.mapping import Conversion
 from custom_components.signalk_ha.sensor import (
     HealthSpec,
     SignalKBaseSensor,
@@ -75,6 +77,127 @@ async def test_registry_sensor_specs(hass) -> None:
     specs = _registry_sensor_specs(hass, entry)
     assert specs
     assert specs[0].path == "navigation.speedOverGround"
+    assert specs[0].unit == "kn"
+    assert specs[0].device_class == SensorDeviceClass.SPEED
+    assert specs[0].state_class == SensorStateClass.MEASUREMENT
+    assert specs[0].conversion == Conversion.MS_TO_KNOTS
+    assert specs[0].spec_known is True
+
+
+async def test_registry_sensor_specs_uses_registry_metadata_for_unmapped_path(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:custom.unmappedPath",
+        suggested_object_id="custom_unmapped_path",
+        config_entry=entry,
+        unit_of_measurement="V",
+        original_device_class=SensorDeviceClass.VOLTAGE,
+        capabilities={ATTR_STATE_CLASS: SensorStateClass.MEASUREMENT},
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "custom.unmappedPath"
+    assert spec.unit == "V"
+    assert spec.device_class == SensorDeviceClass.VOLTAGE
+    assert spec.state_class == SensorStateClass.MEASUREMENT
+    assert spec.conversion is None
+    assert spec.spec_known is False
+
+
+async def test_registry_sensor_specs_restores_registry_icon(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:custom.iconPath",
+        suggested_object_id="custom_icon_path",
+        config_entry=entry,
+        unit_of_measurement="V",
+        original_device_class=SensorDeviceClass.VOLTAGE,
+        original_icon="mdi:flash",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "custom.iconPath"
+    assert spec.icon == "mdi:flash"
+
+
+async def test_registry_sensor_specs_inferrs_schema_conversion_from_registry_unit(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:environment.outside.temperature",
+        suggested_object_id="outside_temperature",
+        config_entry=entry,
+        unit_of_measurement="°C",
+        capabilities={ATTR_STATE_CLASS: SensorStateClass.MEASUREMENT},
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "environment.outside.temperature"
+    assert spec.unit == "°C"
+    assert spec.state_class == SensorStateClass.MEASUREMENT
+    assert spec.conversion == Conversion.K_TO_C
+    assert spec.spec_known is True
+
+
+async def test_registry_sensor_specs_does_not_infer_conversion_without_unit_alignment(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:environment.outside.temperature",
+        suggested_object_id="outside_temperature_raw",
+        config_entry=entry,
+        unit_of_measurement="K",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "environment.outside.temperature"
+    assert spec.unit == "K"
+    assert spec.conversion is None
+    assert spec.spec_known is True
+
+
+async def test_registry_sensor_specs_uses_schema_unit_when_registry_unit_mismatches(hass) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:environment.outside.temperature",
+        suggested_object_id="outside_temperature_fahrenheit",
+        config_entry=entry,
+        unit_of_measurement="°F",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "environment.outside.temperature"
+    assert spec.unit == "K"
+    assert spec.conversion is None
+    assert spec.spec_known is True
 
 
 async def test_registry_sensor_specs_filters_invalid(hass) -> None:

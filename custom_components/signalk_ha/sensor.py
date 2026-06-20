@@ -6,7 +6,12 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    ATTR_STATE_CLASS,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
@@ -33,7 +38,9 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
+from .mapping import Conversion, lookup_mapping
 from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
+from .schema import lookup_schema
 
 PARALLEL_UPDATES = 1
 
@@ -164,21 +171,111 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
             default_min_update_seconds=default_min_update_seconds,
             path_policies=path_policies,
         )
+        mapping = lookup_mapping(path)
+        schema = lookup_schema(path)
+        registry_unit = registry_entry.unit_of_measurement
+        icon = registry_entry.original_icon or registry_entry.icon
+        device_class = (
+            mapping.device_class if mapping else _device_class_from_registry(registry_entry)
+        )
+        state_class = mapping.state_class if mapping else _state_class_from_registry(registry_entry)
+        conversion = (
+            mapping.conversion if mapping else _conversion_for_path(path, schema, registry_unit)
+        )
+        unit = (
+            mapping.unit
+            if mapping
+            else _fallback_unit_for_schema(schema, registry_unit, conversion)
+        )
         specs.append(
             DiscoveredEntity(
                 path=path,
                 name=name,
                 kind="sensor",
-                unit=None,
-                device_class=None,
-                state_class=None,
-                conversion=None,
+                unit=unit,
+                device_class=device_class,
+                state_class=state_class,
+                conversion=conversion,
+                icon=icon,
+                spec_known=(mapping is not None or schema is not None),
                 tolerance=effective.tolerance,
                 min_update_seconds=effective.min_update_seconds,
                 period_ms=effective.period_ms,
             )
         )
     return specs
+
+
+def _device_class_from_registry(registry_entry: er.RegistryEntry) -> SensorDeviceClass | None:
+    value = registry_entry.original_device_class or registry_entry.device_class
+    if not value:
+        return None
+    try:
+        return SensorDeviceClass(value)
+    except ValueError:
+        return None
+
+
+def _state_class_from_registry(registry_entry: er.RegistryEntry) -> SensorStateClass | None:
+    capabilities = registry_entry.capabilities or {}
+    raw_state_class = capabilities.get(ATTR_STATE_CLASS)
+    if raw_state_class is None:
+        return None
+    if isinstance(raw_state_class, SensorStateClass):
+        return raw_state_class
+    if not isinstance(raw_state_class, str):
+        return None
+    try:
+        return SensorStateClass(raw_state_class)
+    except ValueError:
+        return None
+
+
+def _conversion_for_path(
+    path: str, schema: Any | None, registry_unit: str | None
+) -> Conversion | None:
+    schema_units = schema.units if schema and isinstance(schema.units, str) else None
+    if not schema_units:
+        return None
+    units = schema_units.lower()
+    unit_norm = registry_unit.lower() if isinstance(registry_unit, str) else ""
+
+    if units == "k" and path.endswith(".temperature"):
+        if unit_norm in {"°c", "° c", "degc", "c"}:
+            return Conversion.K_TO_C
+        return None
+
+    if units == "pa" and path.endswith(".pressure"):
+        if unit_norm == "hpa":
+            return Conversion.PA_TO_HPA
+        return None
+
+    if units == "ratio" and (path.endswith("relativeHumidity") or path.endswith("currentLevel")):
+        if unit_norm in {"%", "percent", "percentage"}:
+            return Conversion.RATIO_TO_PERCENT
+        return None
+
+    if units == "rad":
+        if unit_norm.startswith("°") or unit_norm in {"deg", "degt", "degm"}:
+            return Conversion.RAD_TO_DEG
+        return None
+
+    return None
+
+
+def _fallback_unit_for_schema(
+    schema: Any | None, registry_unit: str | None, conversion: Conversion | None
+) -> str | None:
+    schema_units = schema.units if schema and isinstance(schema.units, str) else None
+    if not schema_units:
+        return registry_unit
+    if not isinstance(registry_unit, str) or not registry_unit:
+        return schema_units
+    if conversion is not None:
+        return registry_unit
+    if registry_unit.lower() == schema_units.lower():
+        return registry_unit
+    return schema_units
 
 
 class SignalKBaseSensor(CoordinatorEntity, SensorEntity):
