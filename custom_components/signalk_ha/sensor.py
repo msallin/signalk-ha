@@ -175,18 +175,21 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
         schema = lookup_schema(path)
         registry_unit = registry_entry.unit_of_measurement
         icon = registry_entry.original_icon or registry_entry.icon
-        device_class = (
-            mapping.device_class if mapping else _device_class_from_registry(registry_entry)
-        )
-        state_class = mapping.state_class if mapping else _state_class_from_registry(registry_entry)
-        conversion = (
-            mapping.conversion if mapping else _conversion_for_path(path, schema, registry_unit)
-        )
-        unit = (
-            mapping.unit
-            if mapping
-            else _fallback_unit_for_schema(schema, registry_unit, conversion)
-        )
+        if mapping:
+            device_class = mapping.device_class
+            state_class = mapping.state_class
+            conversion = mapping.conversion
+            unit = mapping.unit
+        elif schema and not schema.units:
+            device_class = None
+            state_class = None
+            conversion = None
+            unit = None
+        else:
+            device_class = _device_class_from_registry(registry_entry)
+            state_class = _state_class_from_registry(registry_entry)
+            conversion = _conversion_for_path(path, schema, registry_unit)
+            unit = _fallback_unit_for_schema(schema, registry_unit, conversion)
         specs.append(
             DiscoveredEntity(
                 path=path,

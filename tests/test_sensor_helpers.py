@@ -110,6 +110,59 @@ async def test_registry_sensor_specs_uses_registry_metadata_for_unmapped_path(ha
     assert spec.spec_known is False
 
 
+async def test_registry_sensor_specs_restores_destination_common_name_as_text(
+    hass,
+) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:navigation.destination.commonName",
+        suggested_object_id="destination_common_name",
+        config_entry=entry,
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "navigation.destination.commonName"
+    assert spec.unit is None
+    assert spec.device_class is None
+    assert spec.state_class is None
+    assert spec.suggested_display_precision is None
+    assert spec.spec_known is True
+
+
+async def test_registry_sensor_specs_ignores_stale_numeric_metadata_for_schema_text(
+    hass,
+) -> None:
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:navigation.destination.commonName",
+        suggested_object_id="destination_common_name",
+        config_entry=entry,
+        unit_of_measurement="kn",
+        original_device_class=SensorDeviceClass.SPEED,
+        capabilities={ATTR_STATE_CLASS: SensorStateClass.MEASUREMENT},
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs
+    spec = specs[0]
+    assert spec.path == "navigation.destination.commonName"
+    assert spec.unit is None
+    assert spec.device_class is None
+    assert spec.state_class is None
+    assert spec.suggested_display_precision is None
+    assert spec.spec_known is True
+
+
 async def test_registry_sensor_specs_restores_registry_icon(hass) -> None:
     entry = _make_entry()
     entry.add_to_hass(hass)

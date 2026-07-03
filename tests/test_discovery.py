@@ -203,6 +203,41 @@ def test_discovery_sets_default_precision_for_speed_and_angle() -> None:
     assert units["environment.current.setMagnetic"] == "° M"
 
 
+def test_discovery_destination_common_name_is_plain_text_sensor() -> None:
+    data = {
+        "navigation": {
+            "destination": {
+                "commonName": {"value": "TOULON"},
+            }
+        }
+    }
+
+    result = discover_entities(data, scopes=("navigation",))
+    entity = next(
+        spec for spec in result.entities if spec.path == "navigation.destination.commonName"
+    )
+
+    assert entity.unit is None
+    assert entity.device_class is None
+    assert entity.state_class is None
+    assert entity.suggested_display_precision is None
+
+
+def test_discovery_text_value_does_not_get_heuristic_precision() -> None:
+    data = {
+        "navigation": {
+            "speedLabel": {"value": "FAST"},
+            "angleLabel": {"value": "PORT", "meta": {"units": "rad"}},
+        }
+    }
+
+    result = discover_entities(data, scopes=("navigation",))
+    precisions = {entity.path: entity.suggested_display_precision for entity in result.entities}
+
+    assert precisions["navigation.speedLabel"] is None
+    assert precisions["navigation.angleLabel"] is None
+
+
 def test_discovery_apply_entry_policies_defaults_and_overrides() -> None:
     data = {
         "environment": {
