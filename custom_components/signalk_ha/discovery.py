@@ -242,11 +242,26 @@ def _add_entity(
 
     name = _display_name(path, meta, mapping_name=mapping.display_name if mapping else None)
     units_hint = schema_units or meta_units
-    conversion = mapping.conversion if mapping else _conversion_from_meta(path, units_hint)
-    unit = mapping.unit if mapping else _unit_from_meta(path, units_hint, conversion)
-    device_class = mapping.device_class if mapping else None
-    state_class = mapping.state_class if mapping else None
-    suggested_display_precision = _suggested_display_precision(path, device_class, conversion, unit)
+    if mapping:
+        conversion = mapping.conversion
+        unit = mapping.unit
+        device_class = mapping.device_class
+        state_class = mapping.state_class
+    elif schema_info is not None and not schema_units:
+        # schema knows this path and declares no units: it is text-valued, so keep it
+        # plain and ignore any unit hint the delta's meta may carry.
+        conversion = None
+        unit = None
+        device_class = None
+        state_class = None
+    else:
+        conversion = _conversion_from_meta(path, units_hint)
+        unit = _unit_from_meta(path, units_hint, conversion)
+        device_class = None
+        state_class = None
+    suggested_display_precision = _suggested_display_precision(
+        path, value, device_class, conversion, unit
+    )
     tolerance = mapping.tolerance if mapping else _tolerance_from_meta(units_hint)
     min_update_seconds = mapping.min_update_seconds if mapping else None
     icon = _icon_for_path(path, device_class)
@@ -422,10 +437,15 @@ def _tolerance_from_meta(meta_units: Any) -> float | None:
 
 def _suggested_display_precision(
     path: str,
+    value: Any,
     device_class: SensorDeviceClass | None,
     conversion: Conversion | None,
     unit: str | None,
 ) -> int | None:
+    # Text values (and booleans, which are an int subclass) never get a numeric precision.
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+
     unit_norm = unit.lower() if isinstance(unit, str) else ""
     leaf = path.split(".")[-1].lower() if isinstance(path, str) else ""
 
