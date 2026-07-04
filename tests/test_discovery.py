@@ -12,6 +12,7 @@ from custom_components.signalk_ha.discovery import (
     discover_entities,
 )
 from custom_components.signalk_ha.mapping import Conversion
+from custom_components.signalk_ha.schema import SchemaEntry
 
 
 def test_discovery_finds_expected_paths() -> None:
@@ -201,6 +202,88 @@ def test_discovery_sets_default_precision_for_speed_and_angle() -> None:
     assert precisions["navigation.rateOfTurn"] == 0
     assert precisions["environment.current.setMagnetic"] == 0
     assert units["environment.current.setMagnetic"] == "° M"
+
+
+def test_discovery_destination_common_name_is_plain_text_sensor() -> None:
+    data = {
+        "navigation": {
+            "destination": {
+                "commonName": {"value": "TOULON"},
+            }
+        }
+    }
+
+    result = discover_entities(data, scopes=("navigation",))
+    entity = next(
+        spec for spec in result.entities if spec.path == "navigation.destination.commonName"
+    )
+
+    assert entity.unit is None
+    assert entity.device_class is None
+    assert entity.state_class is None
+    assert entity.suggested_display_precision is None
+
+
+def test_discovery_text_value_does_not_get_heuristic_precision() -> None:
+    data = {
+        "navigation": {
+            "speedLabel": {"value": "FAST"},
+            "angleLabel": {"value": "PORT", "meta": {"units": "rad"}},
+        }
+    }
+
+    result = discover_entities(data, scopes=("navigation",))
+    precisions = {entity.path: entity.suggested_display_precision for entity in result.entities}
+
+    assert precisions["navigation.speedLabel"] is None
+    assert precisions["navigation.angleLabel"] is None
+
+
+def test_discovery_boolean_value_does_not_get_heuristic_precision() -> None:
+    # bool is an int subclass; a speed-named leaf must not pull a numeric precision from it.
+    data = {"navigation": {"speedActive": {"value": True}}}
+
+    result = discover_entities(data, scopes=("navigation",))
+    entity = next(spec for spec in result.entities if spec.path == "navigation.speedActive")
+
+    assert entity.suggested_display_precision is None
+
+
+def test_discovery_schema_text_path_ignores_meta_units() -> None:
+    # commonName is schema-declared with no units; a lying meta units hint must not
+    # turn it into a numeric sensor.
+    data = {
+        "navigation": {
+            "destination": {
+                "commonName": {"value": "TOULON", "meta": {"units": "kn"}},
+            }
+        }
+    }
+
+    result = discover_entities(data, scopes=("navigation",))
+    entity = next(
+        spec for spec in result.entities if spec.path == "navigation.destination.commonName"
+    )
+
+    assert entity.unit is None
+    assert entity.device_class is None
+    assert entity.state_class is None
+    assert entity.conversion is None
+
+
+def test_discovery_empty_string_schema_units_is_treated_as_plain() -> None:
+    # An empty-string units declaration is equivalent to None: still a text sensor.
+    data = {"navigation": {"someLabel": {"value": "PORT", "meta": {"units": "rad"}}}}
+
+    with patch(
+        "custom_components.signalk_ha.discovery.lookup_schema",
+        return_value=SchemaEntry(description="a label", units=""),
+    ):
+        result = discover_entities(data, scopes=("navigation",))
+    entity = next(spec for spec in result.entities if spec.path == "navigation.someLabel")
+
+    assert entity.unit is None
+    assert entity.conversion is None
 
 
 def test_discovery_apply_entry_policies_defaults_and_overrides() -> None:
