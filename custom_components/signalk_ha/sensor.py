@@ -38,7 +38,7 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
-from .mapping import Conversion, lookup_mapping
+from .mapping import Conversion, lookup_mapping, state_class_for_units
 from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
 from .schema import lookup_schema
 
@@ -189,7 +189,12 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
             unit = None
         else:
             device_class = _device_class_from_registry(registry_entry)
-            state_class = _state_class_from_registry(registry_entry)
+            # Same rule as discovery, or entities restored before the first REST
+            # discovery would disagree with the ones discovery produces. The registry
+            # still wins when it already holds a state class.
+            state_class = _state_class_from_registry(registry_entry) or state_class_for_units(
+                path, schema.units if schema else None
+            )
             conversion = _conversion_for_path(path, schema, registry_unit)
             unit = _fallback_unit_for_schema(schema, registry_unit, conversion)
         specs.append(

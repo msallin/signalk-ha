@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable
+from typing import Any, Iterable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
@@ -37,6 +37,71 @@ class PathMapping:
     tolerance: float | None = None
     min_update_seconds: float | None = None
     period_ms: int | None = None
+
+
+# The Signal K schema vocabulary is a closed set of 21 units, all numeric. `meta.units`
+# in a delta comes from the server and is not validated against it: real data carries
+# values like "bool" (electrical.displays.*.nightMode.state). Gating on this allowlist
+# rather than on `units` being truthy keeps non-numeric metadata out of the fallback.
+NUMERIC_UNITS: frozenset[str] = frozenset(
+    {
+        "A",
+        "C",
+        "Hz",
+        "J",
+        "K",
+        "Lux",
+        "Pa",
+        "Pa/s",
+        "V",
+        "W",
+        "%",
+        "kg",
+        "kg/m3",
+        "m",
+        "m2",
+        "m3",
+        "m/s",
+        "rad",
+        "rad/s",
+        "ratio",
+        "s",
+    }
+)
+
+# Angles in radians are circular: the arithmetic mean of 359 deg and 1 deg is 180 deg,
+# the opposite direction. They are left without a state class here rather than given a
+# wrong one; MEASUREMENT_ANGLE is a separate change because it forces a unit change and
+# a mean_type repair for existing installs.
+#
+# These are the angular paths that do NOT wrap, so an arithmetic mean is meaningful.
+NON_WRAPPING_ANGLE_PATHS: frozenset[str] = frozenset(
+    {
+        "steering.rudderAngle",
+        "navigation.magneticVariation",
+        "navigation.leewayAngle",
+        "performance.leeway",
+        "navigation.attitude.roll",
+        "navigation.attitude.pitch",
+    }
+)
+
+_CIRCULAR_UNITS: frozenset[str] = frozenset({"rad"})
+
+
+def state_class_for_units(path: str, units: Any) -> SensorStateClass | None:
+    """Fallback state class for a path with no explicit mapping.
+
+    Returns MEASUREMENT when the unit is one of the numeric vocabulary units, so the
+    sensor produces long-term statistics. Circular angles are excluded structurally by
+    unit, not by enumerating paths, with a bounded allowlist for the angles that never
+    wrap. Note `rad/s` is a rate of turn, not a bearing, so it is not circular.
+    """
+    if not isinstance(units, str) or units not in NUMERIC_UNITS:
+        return None
+    if units in _CIRCULAR_UNITS and path not in NON_WRAPPING_ANGLE_PATHS:
+        return None
+    return SensorStateClass.MEASUREMENT
 
 
 def angle_unit_for_path(path: str, description: str | None = None) -> str:
