@@ -30,6 +30,23 @@ This document captures current Signal K -> Home Assistant naming and unit mappin
 | `navigation.speedThroughWater` | `STW` | `kn` | `ms_to_knots` |
 | `tanks.freshWater.0.currentLevel` | `` | `%` | `ratio_to_percent` |
 
+## State Class for Unmapped Paths
+
+Paths with no entry in the exact or pattern mapping get their `state_class` from their
+unit. `MEASUREMENT` is applied when the unit is one of `A`, `Hz`, `K`, `Pa`, `V`, `W`,
+matched case-insensitively, and never for a path containing `setpoint`, `warn`, `fault`,
+`limit` or `nominal`, which are configuration rather than measurements.
+
+The allowlist is narrower than the schema vocabulary on purpose. Units the integration
+may still convert (`m`, `s`, `m/s`, `m3`, `ratio`, `%`) are left out, because changing
+the unit of a sensor that already has statistics costs the user a `units_changed`
+repair.
+`J` and `C` are left out because they carry running totals, and `rad` because the
+arithmetic mean of a bearing is meaningless.
+
+An explicit mapping always wins, and a `state_class` already stored in the entity
+registry is never replaced.
+
 ## Primrose Snapshot (as discovered in HA)
 
 Generated from `http://primrose.local:3000/signalk/v1/api/vessels/self` using current discovery logic.

@@ -10,6 +10,7 @@
 ### Features
 
 - Expose `navigation.log` and `navigation.trip.log` as cumulative distance sensors converted to nautical miles (`nmi`).
+- Derive `state_class` from the unit for paths with no explicit mapping, so they start producing long-term statistics. Limited to units that will not change later (`A`, `Hz`, `K`, `Pa`, `V`, `W`).
 
 ## 2.1.0
 

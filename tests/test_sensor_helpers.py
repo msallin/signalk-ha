@@ -251,6 +251,43 @@ async def test_registry_sensor_specs_uses_schema_unit_when_registry_unit_mismatc
     assert spec.spec_known is True
 
 
+async def test_registry_sensor_specs_applies_the_unit_fallback(hass) -> None:
+    """The registry mirror derives a state class the same way discovery does."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.voltage",
+        suggested_object_id="house_voltage",
+        config_entry=entry,
+        unit_of_measurement="V",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].state_class is SensorStateClass.MEASUREMENT
+
+
+async def test_registry_state_class_wins_over_the_fallback(hass) -> None:
+    """A state class already in the registry is never replaced."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.voltage",
+        suggested_object_id="house_voltage",
+        config_entry=entry,
+        unit_of_measurement="V",
+        capabilities={ATTR_STATE_CLASS: SensorStateClass.TOTAL_INCREASING},
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].state_class is SensorStateClass.TOTAL_INCREASING
+
+
 async def test_registry_sensor_specs_filters_invalid(hass) -> None:
     entry = _make_entry()
     entry.add_to_hass(hass)

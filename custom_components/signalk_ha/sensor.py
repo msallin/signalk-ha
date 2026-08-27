@@ -190,10 +190,9 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
         else:
             device_class = _device_class_from_registry(registry_entry)
             # Same rule as discovery, or entities restored before the first REST
-            # discovery would disagree with the ones discovery produces. The registry
-            # still wins when it already holds a state class.
+            # discovery would disagree with the ones discovery produces.
             state_class = _state_class_from_registry(registry_entry) or state_class_for_units(
-                path, schema.units if schema else None
+                path, schema.units if schema else registry_unit
             )
             conversion = _conversion_for_path(path, schema, registry_unit)
             unit = _fallback_unit_for_schema(schema, registry_unit, conversion)

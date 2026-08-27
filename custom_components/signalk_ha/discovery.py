@@ -264,12 +264,8 @@ def _add_entity(
         conversion = _conversion_from_meta(path, units_hint)
         unit = _unit_from_meta(path, units_hint, conversion)
         device_class = None
-        # Paths with no explicit mapping used to get no state class at all, so they
-        # never produced long-term statistics: once the recorder purge window passed,
-        # the data was gone. Derive it from the unit instead. The value is deliberately
-        # not consulted -- plenty of real paths are null in a REST snapshot
-        # (navigation.leewayAngle, electrical.batteries.*.capacity.timeRemaining) and
-        # would be skipped forever.
+        # The value is deliberately not consulted: real paths are often null in a REST
+        # snapshot (navigation.leewayAngle) and would be skipped forever.
         state_class = state_class_for_units(path, units_hint)
     suggested_display_precision = _suggested_display_precision(
         path, value, device_class, conversion, unit

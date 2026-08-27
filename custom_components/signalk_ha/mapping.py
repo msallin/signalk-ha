@@ -1,4 +1,4 @@
-"""Explicit path mappings and unit conversions for known Signal K fields."""
+"""Path mappings, unit conversions and the unit fallback for unmapped Signal K fields."""
 
 from __future__ import annotations
 
@@ -39,67 +39,33 @@ class PathMapping:
     period_ms: int | None = None
 
 
-# The Signal K schema vocabulary is a closed set of 21 units, all numeric. `meta.units`
-# in a delta comes from the server and is not validated against it: real data carries
-# values like "bool" (electrical.displays.*.nightMode.state). Gating on this allowlist
-# rather than on `units` being truthy keeps non-numeric metadata out of the fallback.
-NUMERIC_UNITS: frozenset[str] = frozenset(
-    {
-        "A",
-        "C",
-        "Hz",
-        "J",
-        "K",
-        "Lux",
-        "Pa",
-        "Pa/s",
-        "V",
-        "W",
-        "%",
-        "kg",
-        "kg/m3",
-        "m",
-        "m2",
-        "m3",
-        "m/s",
-        "rad",
-        "rad/s",
-        "ratio",
-        "s",
-    }
-)
+# Units where MEASUREMENT is unambiguous and the unit is already settled. Deliberately
+# narrower than the schema vocabulary: `J` and `C` carry running totals (yieldToday,
+# lifetimeDischarge), and `m`, `s`, `m/s`, `m3`, `ratio` and `%` are still candidates for
+# conversion, which would cost every user a units_changed repair once statistics exist.
+# `rad` is circular, so an arithmetic mean points the wrong way.
+SETTLED_UNITS: frozenset[str] = frozenset({"A", "Hz", "K", "Pa", "V", "W"})
 
-# Angles in radians are circular: the arithmetic mean of 359 deg and 1 deg is 180 deg,
-# the opposite direction. They are left without a state class here rather than given a
-# wrong one; MEASUREMENT_ANGLE is a separate change because it forces a unit change and
-# a mean_type repair for existing installs.
-#
-# These are the angular paths that do NOT wrap, so an arithmetic mean is meaningful.
-NON_WRAPPING_ANGLE_PATHS: frozenset[str] = frozenset(
-    {
-        "steering.rudderAngle",
-        "navigation.magneticVariation",
-        "navigation.leewayAngle",
-        "performance.leeway",
-        "navigation.attitude.roll",
-        "navigation.attitude.pitch",
-    }
-)
+# Matched case-insensitively, as `_conversion_from_meta` already does for the same
+# `meta.units` string.
+_SETTLED_LOWER: frozenset[str] = frozenset(unit.lower() for unit in SETTLED_UNITS)
 
-_CIRCULAR_UNITS: frozenset[str] = frozenset({"rad"})
+# Thresholds and setpoints share their unit with the value they bound, so the unit alone
+# cannot tell them apart. They are configuration, not measurements.
+_CONFIG_MARKERS: tuple[str, ...] = ("setpoint", "warn", "fault", "limit", "nominal")
 
 
 def state_class_for_units(path: str, units: Any) -> SensorStateClass | None:
     """Fallback state class for a path with no explicit mapping.
 
-    Returns MEASUREMENT when the unit is one of the numeric vocabulary units, so the
-    sensor produces long-term statistics. Circular angles are excluded structurally by
-    unit, not by enumerating paths, with a bounded allowlist for the angles that never
-    wrap. Note `rad/s` is a rate of turn, not a bearing, so it is not circular.
+    `meta.units` comes from the server and is not validated against the schema: real
+    data carries values like "bool", so gate on the allowlist rather than on `units`
+    being truthy.
     """
-    if not isinstance(units, str) or units not in NUMERIC_UNITS:
+    if not isinstance(units, str) or units.lower() not in _SETTLED_LOWER:
         return None
-    if units in _CIRCULAR_UNITS and path not in NON_WRAPPING_ANGLE_PATHS:
+    lowered = path.lower()
+    if any(marker in lowered for marker in _CONFIG_MARKERS):
         return None
     return SensorStateClass.MEASUREMENT
 
