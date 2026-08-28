@@ -6,11 +6,13 @@
 
 - Use canonical Home Assistant unit constants so converted sensors report standard units (temperature now shows `°C` instead of `degC`).
 - Save per-path policy changes made with `set_path_policy` when the path already has an override; the update could previously be silently dropped.
+- Report every Kelvin path in Celsius. Derived temperatures (`dewPoint`, `heatIndexTemperature`, `regulatorTemperature`, `panelTemperature`, engine `coolantTemperature` and the temperature thresholds) were left in Kelvin next to siblings in Celsius.
+- Convert values correctly for sensors restored from the entity registry when the Signal K schema does not describe the path. `propulsion.port.temperature` could report the raw Kelvin value under a Celsius label after a restart where the server was unreachable.
 
 ### Features
 
 - Expose `navigation.log` and `navigation.trip.log` as cumulative distance sensors converted to nautical miles (`nmi`).
-- Derive `state_class` from the unit for paths with no explicit mapping, so they start producing long-term statistics. Limited to units that will not change later (`A`, `Hz`, `K`, `Pa`, `V`, `W`).
+- Derive `state_class` from the reported unit for paths with no explicit mapping, so they start producing long-term statistics. Limited to units that will not change later (`°C`, `hPa`, `V`, `A`, `W`, `Hz`), and never for configuration paths such as setpoints and thresholds.
 
 ## 2.1.0
 

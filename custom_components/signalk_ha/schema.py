@@ -3062,6 +3062,22 @@ def lookup_schema(path: str) -> SchemaEntry | None:
     return None
 
 
+def schema_entries() -> tuple[tuple[str, SchemaEntry], ...]:
+    """Every schema path and its entry, wildcard patterns included as written.
+
+    Pattern paths keep their `*` placeholder ("electrical.batteries.*.voltage"), so a
+    caller that needs a concrete path should substitute an index itself.
+    """
+    exact = tuple(_EXACT_ENTRIES.items())
+    patterns = tuple((".".join(pattern), entry) for pattern, entry in _PATTERN_ENTRIES)
+    return exact + patterns
+
+
+def schema_units() -> frozenset[str]:
+    """Every unit the bundled schema uses, as Signal K spells them."""
+    return frozenset(entry.units for _, entry in schema_entries() if entry.units)
+
+
 def _match_pattern(pattern: tuple[str, ...], path: tuple[str, ...]) -> bool:
     if len(pattern) != len(path):
         return False

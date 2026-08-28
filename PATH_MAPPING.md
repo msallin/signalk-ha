@@ -32,17 +32,30 @@ This document captures current Signal K -> Home Assistant naming and unit mappin
 
 ## State Class for Unmapped Paths
 
-Paths with no entry in the exact or pattern mapping get their `state_class` from their
-unit. `MEASUREMENT` is applied when the unit is one of `A`, `Hz`, `K`, `Pa`, `V`, `W`,
-matched case-insensitively, and never for a path containing `setpoint`, `warn`, `fault`,
-`limit` or `nominal`, which are configuration rather than measurements.
+Paths with no entry in the exact or pattern mapping get their `state_class` from the
+unit they report. `MEASUREMENT` is applied when that unit is one of `°C`, `hPa`, `V`,
+`A`, `W` or `Hz`, matched case-insensitively.
 
-The allowlist is narrower than the schema vocabulary on purpose. Units the integration
-may still convert (`m`, `s`, `m/s`, `m3`, `ratio`, `%`) are left out, because changing
-the unit of a sensor that already has statistics costs the user a `units_changed`
-repair.
-`J` and `C` are left out because they carry running totals, and `rad` because the
-arithmetic mean of a bearing is meaningless.
+The check is on the reported unit, after conversion, not on `meta.units`. A Signal K
+path the conversion does not catch keeps its raw unit and therefore stays out on its
+own, with no list of conversion rules to keep in step.
+
+The allowlist is narrower than the schema vocabulary on purpose:
+
+| left out | why |
+|---|---|
+| `m`, `s`, `m/s`, `m3`, `ratio`, `%` | still candidates for conversion; changing the unit of a sensor that already has statistics costs the user a `units_changed` repair |
+| `J`, `C` | running totals, which need `TOTAL_INCREASING` rather than `MEASUREMENT` |
+| `rad` | circular, so an arithmetic mean points the wrong way |
+
+Two path rules apply on top of the unit:
+
+- Paths with a `setpoint`, `warn`, `fault`, `limit` or `nominal` word are configuration
+  rather than measurements. Words are matched on dot and camelCase boundaries, so
+  `temperature.warnUpper` is excluded while the instance id in
+  `electrical.chargers.default.voltage` is not.
+- `revolutions` is excluded: `Hz` is settled for AC frequency, but a rotation rate is
+  still a candidate for an RPM conversion.
 
 An explicit mapping always wins, and a `state_class` already stored in the entity
 registry is never replaced.

@@ -38,7 +38,7 @@ from .coordinator import SignalKCoordinator, SignalKDiscoveryCoordinator
 from .device_info import build_device_info
 from .discovery import DiscoveredEntity, convert_value
 from .entity_utils import build_object_id, entity_id_prefix_for_entry, path_from_unique_id
-from .mapping import Conversion, lookup_mapping, state_class_for_units
+from .mapping import Conversion, is_temperature_path, lookup_mapping, state_class_for_unit
 from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
 from .schema import lookup_schema
 
@@ -189,13 +189,14 @@ def _registry_sensor_specs(hass: HomeAssistant, entry: ConfigEntry) -> list[Disc
             unit = None
         else:
             device_class = _device_class_from_registry(registry_entry)
-            # Same rule as discovery, or entities restored before the first REST
-            # discovery would disagree with the ones discovery produces.
-            state_class = _state_class_from_registry(registry_entry) or state_class_for_units(
-                path, schema.units if schema else registry_unit
-            )
             conversion = _conversion_for_path(path, schema, registry_unit)
             unit = _fallback_unit_for_schema(schema, registry_unit, conversion)
+            # Same rule as discovery, keyed on the same reported unit, or entities
+            # restored before the first REST discovery would disagree with the ones
+            # discovery produces. A state class already in the registry always wins.
+            state_class = _state_class_from_registry(registry_entry) or state_class_for_unit(
+                path, unit
+            )
         specs.append(
             DiscoveredEntity(
                 path=path,
@@ -244,12 +245,12 @@ def _conversion_for_path(
     path: str, schema: Any | None, registry_unit: str | None
 ) -> Conversion | None:
     schema_units = schema.units if schema and isinstance(schema.units, str) else None
-    if not schema_units:
-        return None
-    units = schema_units.lower()
     unit_norm = registry_unit.lower() if isinstance(registry_unit, str) else ""
+    if not schema_units:
+        return _conversion_from_registry_unit(unit_norm)
+    units = schema_units.lower()
 
-    if units == "k" and path.endswith(".temperature"):
+    if units == "k" and is_temperature_path(path):
         if unit_norm in {"°c", "° c", "degc", "c"}:
             return Conversion.K_TO_C
         return None
@@ -269,6 +270,29 @@ def _conversion_for_path(
             return Conversion.RAD_TO_DEG
         return None
 
+    return None
+
+
+def _conversion_from_registry_unit(unit_norm: str) -> Conversion | None:
+    """Recover the conversion for a path the bundled schema does not describe.
+
+    Without a schema there is no source unit to compare against, but each converted unit
+    identifies its conversion on its own, and discovery is what wrote it: an entity
+    reporting Celsius was created from Kelvin. Skipping this leaves the conversion unset
+    and the raw Signal K value is then published under the converted unit -- a restored
+    `propulsion.port.temperature` would report 353.15 instead of 80.0 degrees Celsius.
+
+    Knots and nautical miles are absent on purpose: only explicit mappings produce them,
+    and those are handled before this is reached.
+    """
+    if unit_norm in {"°c", "° c", "degc", "c"}:
+        return Conversion.K_TO_C
+    if unit_norm == "hpa":
+        return Conversion.PA_TO_HPA
+    if unit_norm in {"%", "percent", "percentage"}:
+        return Conversion.RATIO_TO_PERCENT
+    if unit_norm.startswith("°") or unit_norm in {"deg", "degt", "degm"}:
+        return Conversion.RAD_TO_DEG
     return None
 
 
