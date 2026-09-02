@@ -283,9 +283,12 @@ def _conversion_from_registry_unit(unit_norm: str) -> Conversion | None:
     `propulsion.port.temperature` would report 353.15 instead of 80.0 degrees Celsius.
 
     Knots and nautical miles are absent on purpose: only explicit mappings produce them,
-    and those are handled before this is reached.
+    and those are handled before this is reached. Bare `C` is not accepted either: with
+    no schema to say the source was Kelvin it is just as likely to be coulombs, the unit
+    Signal K uses for charge counters, and subtracting 273.15 from a charge count would
+    be silently wrong. `_conversion_for_path` still takes it where the schema says `K`.
     """
-    if unit_norm in {"°c", "° c", "degc", "c"}:
+    if unit_norm in {"°c", "° c", "degc"}:
         return Conversion.K_TO_C
     if unit_norm == "hpa":
         return Conversion.PA_TO_HPA

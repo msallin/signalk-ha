@@ -334,6 +334,31 @@ async def test_registry_sensor_specs_leave_unconverted_paths_without_statistics(
     assert specs[0].state_class is None
 
 
+async def test_registry_sensor_specs_keep_coulombs_raw_without_schema(hass) -> None:
+    """A schema-less charge counter in coulombs must not be read as Celsius.
+
+    Without a schema the registry unit is the only clue, and a bare `C` is ambiguous:
+    Signal K uses it for coulombs. Treating it as an old Celsius spelling would subtract
+    273.15 from a charge count, so the value has to stay raw.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.capacity.dischargeToday",
+        suggested_object_id="house_discharge_today",
+        config_entry=entry,
+        unit_of_measurement="C",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].conversion is None
+    assert specs[0].unit == "C"
+    assert specs[0].state_class is None
+
+
 def test_conversion_recovered_from_every_converted_unit() -> None:
     """Each unit discovery converts to identifies its conversion on its own."""
     for unit_norm, expected in (
@@ -346,6 +371,8 @@ def test_conversion_recovered_from_every_converted_unit() -> None:
         ("degm", Conversion.RAD_TO_DEG),
         ("v", None),
         ("pa", None),
+        # bare C is coulombs in the Signal K vocabulary, not a Celsius spelling
+        ("c", None),
         ("", None),
     ):
         assert _conversion_from_registry_unit(unit_norm) is expected, unit_norm
