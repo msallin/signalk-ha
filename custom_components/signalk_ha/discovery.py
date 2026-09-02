@@ -10,7 +10,14 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import PERCENTAGE, UnitOfPressure, UnitOfTemperature
 
 from .const import DEFAULT_PERIOD_MS, DEFAULT_POSITION_TOLERANCE_M, SK_PATH_POSITION
-from .mapping import Conversion, angle_unit_for_path, apply_conversion, lookup_mapping
+from .mapping import (
+    Conversion,
+    angle_unit_for_path,
+    apply_conversion,
+    is_temperature_path,
+    lookup_mapping,
+    state_class_for_unit,
+)
 from .policy import default_policy_from_entry, path_policies_from_entry, resolve_effective_policy
 from .schema import SCHEMA_GROUPS, lookup_schema
 
@@ -258,7 +265,11 @@ def _add_entity(
         conversion = _conversion_from_meta(path, units_hint)
         unit = _unit_from_meta(path, units_hint, conversion)
         device_class = None
-        state_class = None
+        # Derived from the unit the sensor will report, not from meta.units, so a path
+        # the conversion above did not catch keeps its raw unit and stays out. The value
+        # is deliberately not consulted: real paths are often null in a REST snapshot
+        # (navigation.leewayAngle) and would be skipped forever.
+        state_class = state_class_for_unit(path, unit)
     suggested_display_precision = _suggested_display_precision(
         path, value, device_class, conversion, unit
     )
@@ -409,7 +420,7 @@ def _conversion_from_meta(path: str, meta_units: Any) -> Conversion | None:
     if not isinstance(meta_units, str):
         return None
     units = meta_units.lower()
-    if units == "k" and path.endswith(".temperature"):
+    if units == "k" and is_temperature_path(path):
         return Conversion.K_TO_C
     if units == "pa" and path.endswith(".pressure"):
         return Conversion.PA_TO_HPA

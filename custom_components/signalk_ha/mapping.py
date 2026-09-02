@@ -1,13 +1,24 @@
-"""Explicit path mappings and unit conversions for known Signal K fields."""
+"""Path mappings, unit conversions and the unit fallback for unmapped Signal K fields."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable
+from typing import Any, Iterable
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
+    UnitOfFrequency,
+    UnitOfLength,
+    UnitOfPower,
+    UnitOfPressure,
+    UnitOfSpeed,
+    UnitOfTemperature,
+)
 
 # UnitOfLength.NAUTICAL_MILES was added in a later HA release; use the literal
 # string so the integration works across a wider range of HA versions.
@@ -37,6 +48,97 @@ class PathMapping:
     tolerance: float | None = None
     min_update_seconds: float | None = None
     period_ms: int | None = None
+
+
+# Units the integration has settled on, as Home Assistant reports them. The check runs
+# against the unit the sensor actually publishes -- after conversion -- rather than the
+# Signal K unit, because a path the conversion does not catch keeps its raw unit and is
+# therefore not settled: propulsion.port.oilPressure stays "Pa" while
+# environment.outside.pressure becomes "hPa". Gating on the reported unit leaves those
+# alone on its own, with no list of conversion suffixes to keep in step.
+#
+# Deliberately narrower than the Signal K vocabulary. Units still open to conversion
+# (`m`, `s`, `m/s`, `m3`, `ratio`, `%`) are left out, because changing the unit of a
+# sensor that already has statistics costs every user a units_changed repair. `J` and
+# `C` are out because they carry running totals, which need TOTAL_INCREASING rather than
+# MEASUREMENT, and `rad` because the arithmetic mean of a bearing points the wrong way.
+#
+# When adding a unit here:
+# 1. Make sure the integration reports it directly, or converts to it in
+#    `discovery._conversion_from_meta` for every path that carries the Signal K unit.
+# 2. Make sure it is a settled choice -- statistics cannot change unit afterwards
+#    without a repair issue for existing installs.
+SETTLED_UNITS: frozenset[str] = frozenset(
+    {
+        UnitOfTemperature.CELSIUS,
+        UnitOfPressure.HPA,
+        UnitOfElectricPotential.VOLT,
+        UnitOfElectricCurrent.AMPERE,
+        UnitOfPower.WATT,
+        UnitOfFrequency.HERTZ,
+    }
+)
+
+# Matched case-insensitively, as `_conversion_from_meta` already does for the same string.
+_SETTLED_LOWER: frozenset[str] = frozenset(unit.lower() for unit in SETTLED_UNITS)
+
+# Thresholds and setpoints share their unit with the value they bound, so the unit alone
+# cannot tell them apart. They are configuration, not measurements.
+_CONFIG_WORDS: frozenset[str] = frozenset({"setpoint", "warn", "fault", "limit", "nominal"})
+
+# `Hz` is settled for AC frequency but not for a rotation rate: revolutions are the
+# obvious candidate for an RPM conversion, and converting after statistics exist costs a
+# repair issue.
+_UNSETTLED_WORDS: frozenset[str] = frozenset({"revolutions"})
+
+_PATH_WORD = re.compile(r"[a-z]+|[A-Z][a-z]*")
+
+
+def path_words(path: str) -> set[str]:
+    """Split a Signal K path into lowercase words, on both dots and camelCase.
+
+    Matching whole words rather than substrings matters: "default" is a common Signal K
+    instance id and contains "fault".
+
+    "electrical.batteries.house.temperature.limitDischargeUpper"
+        -> {electrical, batteries, house, temperature, limit, discharge, upper}
+    "electrical.chargers.default.voltage"
+        -> {electrical, chargers, default, voltage}
+    """
+    return {word.lower() for word in _PATH_WORD.findall(path)}
+
+
+def is_temperature_path(path: str) -> bool:
+    """Whether a Kelvin path is a temperature, and so should be reported in Celsius.
+
+    Kelvin only ever measures temperature, but the leaf naming varies, so match on the
+    words rather than on an exact suffix. Anything left in Kelvin would sit next to a
+    sibling in Celsius and could not be converted afterwards without a statistics repair.
+    Both discovery and the registry restore share this, or the same path would come back
+    in a different unit depending on which one created the entity.
+
+    "environment.outside.temperature"               -> temperature              -> True
+    "propulsion.port.coolantTemperature"            -> coolant, temperature     -> True
+    "electrical.batteries.0.temperature.warnUpper"  -> temperature, warn, upper -> True
+    "environment.inside.saloon.dewPoint"            -> dew, point               -> True
+    """
+    if "temperature" in path_words(path):
+        return True
+    return path.rsplit(".", 1)[-1].lower().endswith("dewpoint")
+
+
+def state_class_for_unit(path: str, unit: Any) -> SensorStateClass | None:
+    """Fallback state class for a path with no explicit mapping.
+
+    `unit` is the unit the sensor reports, not the raw `meta.units`. That value comes
+    from the server and is not validated against the schema -- real data carries things
+    like "bool" -- so gate on the allowlist rather than on the unit being truthy.
+    """
+    if not isinstance(unit, str) or unit.lower() not in _SETTLED_LOWER:
+        return None
+    if path_words(path) & (_CONFIG_WORDS | _UNSETTLED_WORDS):
+        return None
+    return SensorStateClass.MEASUREMENT
 
 
 def angle_unit_for_path(path: str, description: str | None = None) -> str:

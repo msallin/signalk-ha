@@ -34,6 +34,7 @@ from custom_components.signalk_ha.sensor import (
     SignalKBaseSensor,
     SignalKHealthSensor,
     SignalKSensor,
+    _conversion_from_registry_unit,
     _is_stale,
     _last_notification_attributes,
     _last_seen,
@@ -249,6 +250,132 @@ async def test_registry_sensor_specs_uses_schema_unit_when_registry_unit_mismatc
     assert spec.unit == "K"
     assert spec.conversion is None
     assert spec.spec_known is True
+
+
+async def test_registry_sensor_specs_applies_the_unit_fallback(hass) -> None:
+    """The registry mirror derives a state class the same way discovery does."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.voltage",
+        suggested_object_id="house_voltage",
+        config_entry=entry,
+        unit_of_measurement="V",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].state_class is SensorStateClass.MEASUREMENT
+
+
+async def test_registry_state_class_wins_over_the_fallback(hass) -> None:
+    """A state class already in the registry is never replaced."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.voltage",
+        suggested_object_id="house_voltage",
+        config_entry=entry,
+        unit_of_measurement="V",
+        capabilities={ATTR_STATE_CLASS: SensorStateClass.TOTAL_INCREASING},
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].state_class is SensorStateClass.TOTAL_INCREASING
+
+
+async def test_registry_sensor_specs_recover_conversion_without_schema(hass) -> None:
+    """An engine temperature restored from the registry must stay in Celsius.
+
+    `propulsion.*` has no schema entry, so the source unit has to be recovered from the
+    unit discovery already stored. Without it the raw Kelvin value is published under a
+    Celsius label -- a warm engine reads 353.15 instead of 80.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:propulsion.port.temperature",
+        suggested_object_id="port_temperature",
+        config_entry=entry,
+        unit_of_measurement="°C",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    spec = specs[0]
+    assert spec.conversion == Conversion.K_TO_C
+    assert spec.unit == "°C"
+    assert spec.state_class is SensorStateClass.MEASUREMENT
+
+
+async def test_registry_sensor_specs_leave_unconverted_paths_without_statistics(hass) -> None:
+    """A path still reporting a raw Signal K unit gets no state class."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:propulsion.port.oilPressure",
+        suggested_object_id="port_oil_pressure",
+        config_entry=entry,
+        unit_of_measurement="Pa",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].unit == "Pa"
+    assert specs[0].state_class is None
+
+
+async def test_registry_sensor_specs_keep_coulombs_raw_without_schema(hass) -> None:
+    """A schema-less charge counter in coulombs must not be read as Celsius.
+
+    Without a schema the registry unit is the only clue, and a bare `C` is ambiguous:
+    Signal K uses it for coulombs. Treating it as an old Celsius spelling would subtract
+    273.15 from a charge count, so the value has to stay raw.
+    """
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"signalk:{entry.entry_id}:electrical.batteries.house.capacity.dischargeToday",
+        suggested_object_id="house_discharge_today",
+        config_entry=entry,
+        unit_of_measurement="C",
+    )
+
+    specs = _registry_sensor_specs(hass, entry)
+    assert specs[0].conversion is None
+    assert specs[0].unit == "C"
+    assert specs[0].state_class is None
+
+
+def test_conversion_recovered_from_every_converted_unit() -> None:
+    """Each unit discovery converts to identifies its conversion on its own."""
+    for unit_norm, expected in (
+        ("°c", Conversion.K_TO_C),
+        ("degc", Conversion.K_TO_C),
+        ("hpa", Conversion.PA_TO_HPA),
+        ("%", Conversion.RATIO_TO_PERCENT),
+        ("percent", Conversion.RATIO_TO_PERCENT),
+        ("° t", Conversion.RAD_TO_DEG),
+        ("degm", Conversion.RAD_TO_DEG),
+        ("v", None),
+        ("pa", None),
+        # bare C is coulombs in the Signal K vocabulary, not a Celsius spelling
+        ("c", None),
+        ("", None),
+    ):
+        assert _conversion_from_registry_unit(unit_norm) is expected, unit_norm
 
 
 async def test_registry_sensor_specs_filters_invalid(hass) -> None:

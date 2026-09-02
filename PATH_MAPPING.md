@@ -30,6 +30,36 @@ This document captures current Signal K -> Home Assistant naming and unit mappin
 | `navigation.speedThroughWater` | `STW` | `kn` | `ms_to_knots` |
 | `tanks.freshWater.0.currentLevel` | `` | `%` | `ratio_to_percent` |
 
+## State Class for Unmapped Paths
+
+Paths with no entry in the exact or pattern mapping get their `state_class` from the
+unit they report. `MEASUREMENT` is applied when that unit is one of `°C`, `hPa`, `V`,
+`A`, `W` or `Hz`, matched case-insensitively.
+
+The check is on the reported unit, after conversion, not on `meta.units`. A Signal K
+path the conversion does not catch keeps its raw unit and therefore stays out on its
+own, with no list of conversion rules to keep in step.
+
+The allowlist is narrower than the schema vocabulary on purpose:
+
+| left out | why |
+|---|---|
+| `m`, `s`, `m/s`, `m3`, `ratio`, `%` | still candidates for conversion; changing the unit of a sensor that already has statistics costs the user a `units_changed` repair |
+| `J`, `C` | running totals, which need `TOTAL_INCREASING` rather than `MEASUREMENT` |
+| `rad` | circular, so an arithmetic mean points the wrong way |
+
+Two path rules apply on top of the unit:
+
+- Paths with a `setpoint`, `warn`, `fault`, `limit` or `nominal` word are configuration
+  rather than measurements. Words are matched on dot and camelCase boundaries, so
+  `temperature.warnUpper` is excluded while the instance id in
+  `electrical.chargers.default.voltage` is not.
+- `revolutions` is excluded: `Hz` is settled for AC frequency, but a rotation rate is
+  still a candidate for an RPM conversion.
+
+An explicit mapping always wins, and a `state_class` already stored in the entity
+registry is never replaced.
+
 ## Primrose Snapshot (as discovered in HA)
 
 Generated from `http://primrose.local:3000/signalk/v1/api/vessels/self` using current discovery logic.
